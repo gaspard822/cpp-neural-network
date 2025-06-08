@@ -1,4 +1,4 @@
-# MLP from scratch in C++
+# Modular Neural Network Implementation in C++ (with Eigen)
 
 This is a project that implements a modular neural network framework in C++ from scratch, using Eigen. The goal is certainly not to build a competitive machine learning framework, but rather to deepen my understanding by implementing things myself.
 
