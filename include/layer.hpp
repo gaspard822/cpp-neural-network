@@ -30,7 +30,8 @@ struct Gradients {
 };
 
 enum class LayerType {
-    FULLY_CONNECTED_LAYER
+    FULLY_CONNECTED_LAYER,
+    MULTI_HEAD_ATTENTION_LAYER
 };
 
 /**

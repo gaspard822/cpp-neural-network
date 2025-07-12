@@ -8,13 +8,15 @@
 #include "mean_squared_error_loss.hpp"
 #include "cross_entropy_loss.hpp"
 #include "mnist.cpp"
+#include "transformers.cpp"
 
 using namespace std;
 
 int main() {
 
     // train_test_mnist();
-    infer_mnist();
+    // infer_mnist();
+    doing_stuff();
 
     return 0;
 }

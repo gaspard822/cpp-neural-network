@@ -17,6 +17,7 @@ set(SOURCES
     src/identity.cpp
     src/main.cpp
     src/mean_squared_error_loss.cpp
+    src/multi_head_attention_layer.cpp
     src/neural_network.cpp
     src/optimizer.cpp
     src/relu.cpp
