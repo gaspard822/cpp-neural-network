@@ -9,9 +9,10 @@ MultiHeadAttentionLayer::MultiHeadAttentionLayer(int seq, int d_model, int h, bo
 
     gamma = VectorXd::Ones(seq);
     beta = VectorXd::Zero(seq);
+    mean = VectorXd::Zero(seq);
+    inv_sqrt_var_plus_epsilon = VectorXd::Zero(seq);
     running_mean = VectorXd::Zero(seq);
     running_variance = VectorXd::Zero(seq);
-    inv_sqrt_var_plus_epsilon = VectorXd::Zero(seq);
 
     // Glorot initialization for the parameter matrices
     WQ.resize(h);
@@ -48,7 +49,7 @@ void MultiHeadAttentionLayer::forward(const MatrixXd& layer_input) {
     input = layer_input;
     // cout << "input: \n" << input << endl;
     // compute mu and sigma along rows
-    VectorXd mean = input.rowwise().mean();
+    mean = input.rowwise().mean();
     // cout << "mean: \n" << mean << endl;
 
     MatrixXd diff = input.colwise() - mean;
@@ -156,7 +157,23 @@ MatrixXd MultiHeadAttentionLayer::backward(const MatrixXd& d_output) {
     // cout << "d_E_bar: \n" << d_E_bar << endl;
     // cout << "d_beta: \n" << d_beta << endl;
     MatrixXd d_E_hat = d_E_bar.array().colwise() * gamma.array();
-    return MatrixXd();
+
+    // cout << "E'': \n" << input.colwise() - mean << endl;
+    // cout << "d_E_hat: \n" << d_E_hat << endl;
+    // cout << "inv_sqrt_var: \n" << inv_sqrt_var_plus_epsilon << endl;
+    // cout << "d_output: \n" << d_output << endl;
+    // cout << "d_model: \n" << d_model << endl;
+
+    // Manually chekced d_E and seemed correct
+    MatrixXd d_E = (input.colwise() - mean).array().colwise() * inv_sqrt_var_plus_epsilon.array().pow(3);
+    // cout << "\nStep 1: \n" << d_E << endl;
+    d_E = d_E.array().colwise() * (d_E_hat.array() * (input.colwise() - mean).array()).rowwise().sum();
+    // cout << "\nStep 2: \n" << d_E << endl;
+    d_E = d_E.array().colwise() + inv_sqrt_var_plus_epsilon.array() * d_beta.array(); // d_beta is already the sum of d_E_hat along the rows
+    // cout << "\nStep 3: \n" << d_E << endl;
+    d_E = d_E.array() * (-1.0/d_model) + d_E_hat.array() + d_output.array();
+    // cout << "\nStep 4: \n" << d_E << endl;
+    return d_E;
 }
 MatrixXd MultiHeadAttentionLayer::infer(const MatrixXd& layer_input) const {
     return MatrixXd();

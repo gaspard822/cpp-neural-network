@@ -5,7 +5,7 @@
 
 class MultiHeadAttentionLayer : public Layer {
     private:
-        VectorXd gamma, beta, d_gamma, d_beta, running_mean, running_variance, inv_sqrt_var_plus_epsilon;
+        VectorXd gamma, beta, d_gamma, d_beta, mean, inv_sqrt_var_plus_epsilon, running_mean, running_variance;
         MatrixXd E_bar, E_hat;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         // MatrixXd WO, d_WO;
