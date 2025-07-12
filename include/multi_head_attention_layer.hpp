@@ -6,8 +6,9 @@
 class MultiHeadAttentionLayer : public Layer {
     private:
         VectorXd gamma, beta, d_gamma, d_beta, running_mean, running_variance, inv_sqrt_var_plus_epsilon;
-        vector<MatrixXd> WQ, WK, WV, d_WQ, d_WK, d_WV;
-        MatrixXd WO, d_WO;
+        MatrixXd E_bar, E_hat;
+        vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
+        // MatrixXd WO, d_WO;
         // vector<MatrixXd> Q, K, V, d_Q, d_K, d_V;
         // DON'T NEED TO STORE d_Q, d_K, d_V, AS THEY ARE NOT USED FOR THE BACKPROPAGATION
         vector<MatrixXd> Q, K, V;

@@ -17,14 +17,19 @@ MultiHeadAttentionLayer::MultiHeadAttentionLayer(int seq, int d_model, int h, bo
     WQ.resize(h);
     WK.resize(h);
     WV.resize(h);
+    WO.resize(h);
+    d_WQ.resize(h);
+    d_WK.resize(h);
+    d_WV.resize(h);
+    d_WO.resize(h);
     double limit_d_k = sqrt(6.0 / (d_model + d_k));
     double limit_d_v = sqrt(6.0 / (d_model + d_v));
     for (int i = 0; i < h; i++) {
         WQ[i] = MatrixXd::Random(d_model, d_k) * limit_d_k;
         WK[i] = MatrixXd::Random(d_model, d_k) * limit_d_k;
         WV[i] = MatrixXd::Random(d_model, d_v) * limit_d_v;
+        WO[i] = MatrixXd::Random(d_v, d_model) * limit_d_v;
     }
-    WO = MatrixXd::Random(h * d_v, d_model) * limit_d_v;
 
     Q.resize(h);
     K.resize(h);
@@ -34,33 +39,42 @@ MultiHeadAttentionLayer::MultiHeadAttentionLayer(int seq, int d_model, int h, bo
     head.resize(h);
 }
 
+// READ IT AGAIN CAREFULLY AND I'M QUITE CONFIDENT THAT THIS FUNCTION IS CORRECT
 void MultiHeadAttentionLayer::forward(const MatrixXd& layer_input) {
     // layer_input : (seq, d_model)
 
+    // cout << "MultiHeadAttentionLayer::backward()\n" << endl;
     double epsilon = 1e-8;
     input = layer_input;
+    // cout << "input: \n" << input << endl;
     // compute mu and sigma along rows
-    cout << "input: \n" << input << endl;
     VectorXd mean = input.rowwise().mean();
-    cout << "mean: \n" << mean << endl;
+    // cout << "mean: \n" << mean << endl;
+
     MatrixXd diff = input.colwise() - mean;
-    cout << "diff: \n" << diff << endl;
+    // cout << "diff: \n" << diff << endl;
+    
     VectorXd variance = diff.array().square().rowwise().mean();
-    cout << "variance: \n" << variance << endl;
+    // cout << "variance: \n" << variance << endl;
+
     inv_sqrt_var_plus_epsilon = VectorXd::Ones(variance.rows()).array() / (variance.array() + epsilon).sqrt();
-    cout << "inv_sqrt_var_plus_epsilon: \n" << inv_sqrt_var_plus_epsilon << endl;
+    // cout << "inv_sqrt_var_plus_epsilon: \n" << inv_sqrt_var_plus_epsilon << endl;
+
     // NEED TO UPDATE THE RUNNING MEAN AND THE RUNNING VARIANCE
-    MatrixXd E_hat = diff.array().colwise() / inv_sqrt_var_plus_epsilon.array();
-    cout << "E_hat: \n" << E_hat << endl;
-    MatrixXd E_bar = (E_hat.array().colwise() * gamma.array()).colwise() + beta.array();
-    cout << "E_bar: \n" << E_bar << endl;
+
+    E_hat = diff.array().colwise() / inv_sqrt_var_plus_epsilon.array();
+    // cout << "E_hat: \n" << E_hat << endl;
+
+    E_bar = (E_hat.array().colwise() * gamma.array()).colwise() + beta.array();
+    // cout << "E_bar: \n" << E_bar << endl;
+    
     for (int i = 0; i < h; i++) {
         Q[i] = E_bar * WQ[i];
         K[i] = E_bar * WK[i];
         V[i] = E_bar * WV[i];
     }
-    cout << "Q[0]: \n" << Q[0] << endl;
-    cout << "K[0]: \n" << K[0] << endl;
+    // cout << "Q[0]: \n" << Q[0] << endl;
+    // cout << "K[0]: \n" << K[0] << endl;
 
     for (int i = 0; i < h; i++) {
         // Don't need to store J_i
@@ -83,20 +97,21 @@ void MultiHeadAttentionLayer::forward(const MatrixXd& layer_input) {
         // cout << "softmaxJ[i]: \n" << softmaxJ[i] << endl;
         // cout << "=====================================" << endl;
     }
-    cout << "softmaxJ[1]: \n" << softmaxJ[1] << endl;
+    // cout << "softmaxJ[1]: \n" << softmaxJ[1] << endl;
     
     // WOULD MAKE SENSE TO DELETE THIS input, output FROM LAYER, AS IT STORES SOME EXTRA MATRICES FOR NO REASON
     // => WOULD NEED TO MODIFY neural_network::forward()
+
     output = MatrixXd::Zero(seq, d_model);
-    cout << "COMPUTING output" << endl;
+    // cout << "COMPUTING output" << endl;
     for (int i = 0; i < h; i++) {
-        cout << "(i * d_v, 0, d_v, d_model): \n" << "(" << i * d_v << ", "  << 0 << ", " << d_v << ", " << d_model << ")" << endl;
+        // cout << "(i * d_v, 0, d_v, d_model): \n" << "(" << i * d_v << ", "  << 0 << ", " << d_v << ", " << d_model << ")" << endl;
         head[i] = softmaxJ[i] * V[i];
-        cout << "Did a computation" << endl;
-        output += head[i] * WO.block(i * d_v, 0, d_v, d_model);
-        cout << "(softmaxJ[i] * V[i]) * WO.block(i * d_v, 0, d_v, d_model): \n" << (softmaxJ[i] * V[i]) * WO.block(i * d_v, 0, d_v, d_model) << endl;
-        cout << "output: \n" << output << endl;
-        cout << "=====================================" << endl;
+        // cout << "head[i]: \n" << head[i] << endl;
+        output += head[i] * WO[i];
+        // cout << "(softmaxJ[i] * V[i]) * WO[i]: \n" << (softmaxJ[i] * V[i]) * WO[i] << endl;
+        // cout << "output: \n" << output << endl;
+        // cout << "=====================================" << endl;
     }
     output = output + input;
     
@@ -105,19 +120,42 @@ void MultiHeadAttentionLayer::forward(const MatrixXd& layer_input) {
 
 MatrixXd MultiHeadAttentionLayer::backward(const MatrixXd& d_output) {
     // d_output : (seq, d_model)
-    MatrixXd d_H = d_output * WO.transpose();
+
+    // cout << "MultiHeadAttentionLayer::backward()\n" << endl;
+    vector<MatrixXd> d_head;
     for (int i = 0; i < h; i++) {
-        d_WO.block(i * d_v, 0, d_v, d_model) = head[i].transpose() * d_output;
+        d_head.push_back(d_output * WO[i].transpose());
+        d_WO[i] = head[i].transpose() * d_output;
     }
     // Could merge the previous loop with this one for efficiency (will do it after it works)
     vector<MatrixXd> d_softmaxJ, d_J, d_Q, d_K, d_V;
+    MatrixXd d_E_bar = MatrixXd::Zero(seq, d_model);
     for (int i = 0; i < h; i++) {
-        d_softmaxJ.push_back(d_H.block(0, i * d_v, seq, d_v) * V[i]);
-        d_V.push_back(softmaxJ[i].transpose() * d_H.block(0, i * d_v, seq, d_v));
-        d_J.push_back((d_softmaxJ[i].array() - (d_softmaxJ[i].array() * softmaxJ[i].array()).rowwise().sum().replicate(1, seq)).array() * softmaxJ[i].array());
-        d_Q.push_back((d_J[i] * K[i]).array() / sqrt(d_k));
-        d_K.push_back((d_J[i].transpose() * Q[i]).array() / sqrt(d_k));
+        // cout << "=====================================" << endl;
+        d_softmaxJ.push_back(d_head[i] * V[i].transpose());
+        d_J.push_back(((d_softmaxJ[i].array() - (d_softmaxJ[i].array() * softmaxJ[i].array()).rowwise().sum().replicate(1, seq)).array()).array() * softmaxJ[i].array());
+        if (masked) {
+            MatrixXd M = MatrixXd::Zero(seq, seq);
+            M.triangularView<Lower>().setOnes();
+            d_J[i].array() *= M.array();
+        }
+        // cout << "d_softmaxJ[i]: \n" << d_softmaxJ[i] << endl;
+        // cout << "softmaxJ[i]: \n" << softmaxJ[i] << endl;
+        // cout << "d_J[i]: \n" << d_J[i] << endl;
+
+        d_V.push_back(softmaxJ[i].transpose() * d_head[i]);
+        d_K.push_back((d_J[i].transpose() * Q[i]).array() * (1/sqrt(d_k)));
+        d_Q.push_back((d_J[i] * K[i]).array() * (1/sqrt(d_k)));
+        d_E_bar += d_Q[i] * WQ[i].transpose() + d_K[i] * WK[i].transpose() + d_V[i] * WV[i].transpose();
+        d_WQ[i] = E_bar.transpose() * d_Q[i];
+        d_WK[i] = E_bar.transpose() * d_K[i];
+        d_WV[i] = E_bar.transpose() * d_V[i];
     }
+    d_gamma = (d_E_bar.array() * E_hat.array()).rowwise().sum();
+    d_beta = d_E_bar.rowwise().sum();
+    // cout << "d_E_bar: \n" << d_E_bar << endl;
+    // cout << "d_beta: \n" << d_beta << endl;
+    MatrixXd d_E_hat = d_E_bar.array().colwise() * gamma.array();
     return MatrixXd();
 }
 MatrixXd MultiHeadAttentionLayer::infer(const MatrixXd& layer_input) const {
