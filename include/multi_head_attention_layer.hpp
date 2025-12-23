@@ -3,9 +3,19 @@
 
 #include "layer.hpp"
 
+enum class AttentionMode {
+    ENCODER_SELF,
+    DECODER_MASKED_SELF,
+    DECODER_CROSS
+};
+
 class MultiHeadAttentionLayer : public Layer {
     private:
-        VectorXd gamma, beta, d_gamma, d_beta, mean, inv_sqrt_var_plus_epsilon, running_mean, running_variance;
+        AttentionMode mode;
+        MultiHeadAttentionLayer* encoder_mha;
+        VectorXd mean, inv_sqrt_var_plus_epsilon, running_mean, running_variance;
+        VectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
+        VectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
         MatrixXd E_bar, E_hat;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         // MatrixXd WO, d_WO;
@@ -15,10 +25,9 @@ class MultiHeadAttentionLayer : public Layer {
         vector<MatrixXd> softmaxJ, head;
         double momentum;
         int seq, d_model, h, d_k, d_v;
-        bool masked;
 
     public:
-        MultiHeadAttentionLayer(int seq, int d_model, int h, bool masked = false);
+        MultiHeadAttentionLayer(int seq, int d_model, int h, AttentionMode mode, MultiHeadAttentionLayer* encoder = nullptr);
 
         void forward(const MatrixXd& input) override;
 
@@ -30,6 +39,9 @@ class MultiHeadAttentionLayer : public Layer {
         unique_ptr<Gradients> get_params() override;
         string get_activation_name() const override;
         LayerType get_type() const override;
+        AttentionMode get_mode() const;
+        bool is_cross_attention() const;
+        bool is_masked_attention() const;
 };
 
 #endif
