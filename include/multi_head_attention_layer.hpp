@@ -16,11 +16,8 @@ class MultiHeadAttentionLayer : public Layer {
         VectorXd mean, inv_sqrt_var_plus_epsilon, running_mean, running_variance;
         VectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
         VectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
-        MatrixXd E_bar, E_hat;
+        MatrixXd E_hat, E_bar;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
-        // MatrixXd WO, d_WO;
-        // vector<MatrixXd> Q, K, V, d_Q, d_K, d_V;
-        // DON'T NEED TO STORE d_Q, d_K, d_V, AS THEY ARE NOT USED FOR THE BACKPROPAGATION
         vector<MatrixXd> Q, K, V;
         vector<MatrixXd> softmaxJ, head;
         double momentum;
