@@ -7,7 +7,7 @@
 void doing_stuff() {
     NeuralNetwork nn("CrossEntropy", "VanillaSGD");
 
-    MultiHeadAttentionLayer* mha_layer_1 = new MultiHeadAttentionLayer(2, 4, 2, AttentionMode::ENCODER_SELF);
+    MultiHeadAttentionLayer* mha_layer_1 = new MultiHeadAttentionLayer(2, 4, 2, AttentionMode::DECODER_MASKED_SELF);
     nn.add_layer(mha_layer_1);
     FullyConnectedLayer* fc_layer_1 = new FullyConnectedLayer(new Relu(), 2, 2);
     MatrixXd m(2, 4);

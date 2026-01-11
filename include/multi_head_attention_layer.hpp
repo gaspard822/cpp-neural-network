@@ -13,9 +13,9 @@ class MultiHeadAttentionLayer : public Layer {
     private:
         AttentionMode mode;
         MultiHeadAttentionLayer* encoder_mha;
-        VectorXd mean, inv_sqrt_var_plus_epsilon, running_mean, running_variance;
-        VectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
-        VectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
+        VectorXd mean, inv_sqrt_var_plus_epsilon;
+        RowVectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
+        RowVectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
         MatrixXd E_hat, E_bar;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         vector<MatrixXd> Q, K, V;
