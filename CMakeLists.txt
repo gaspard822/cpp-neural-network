@@ -12,18 +12,25 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(include)
 
 set(SOURCES
-    src/adam_optimizer.cpp
-    src/cross_entropy_loss.cpp
-    src/fully_connected_layer.cpp
-    src/identity.cpp
     src/main.cpp
-    src/mean_squared_error_loss.cpp
-    src/multi_head_attention_layer.cpp
-    src/neural_network.cpp
-    src/optimizer.cpp
-    src/relu.cpp
-    src/sigmoid.cpp
-    src/vanilla_sgd_optimizer.cpp
+    src/core/adam_optimizer.cpp
+    src/core/cross_entropy_loss.cpp
+    src/core/identity.cpp
+    src/core/mean_squared_error_loss.cpp
+    src/core/optimizer.cpp
+    src/core/relu.cpp
+    src/core/sigmoid.cpp
+    src/core/vanilla_sgd_optimizer.cpp
+    src/mlp/fully_connected_layer.cpp
+    src/mlp/neural_network.cpp
+    src/transformer/decoder.cpp
+    src/transformer/encoder.cpp
+    src/transformer/feed_forward.cpp
+    src/transformer/input_layer.cpp
+    src/transformer/layer_norm.cpp
+    src/transformer/multi_head_attention.cpp
+    src/transformer/tokenizer.cpp
+    src/transformer/transformer.cpp
 )
 
 add_executable(basic_nn ${SOURCES})
