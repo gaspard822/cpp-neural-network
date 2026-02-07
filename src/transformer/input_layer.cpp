@@ -3,20 +3,8 @@
 #include <array>
 #include "transformer/input_layer.hpp"
 
-InputLayer::InputLayer(int seq, int d_model, const string& path) : seq(seq), d_model(d_model), path(path) {
-    // Count how many unique character tokens we have
-    array<bool, 256> tokens{};
-    tokens.fill(false);
-    ifstream input_file(path, ios::binary);
-    if (!input_file) throw runtime_error("Cannot open file: " + path);
-    unsigned char c;
-    while (input_file.read(reinterpret_cast<char*>(&c), 1)) {
-        tokens[c] = true;
-    }
-    int unique_chars = 0;
-    for (bool b : tokens) if (b) ++unique_chars;
-    vocab_size = unique_chars + 3;  // we will have three special tokens: <SOS>, <EOS> and <PAD>
-    
+InputLayer::InputLayer(int seq, int d_model) : seq(seq), d_model(d_model) {
+    int PAD_ID = 0;
     // Initialize the embeddings matrix
     double limit = sqrt(6.0 / (vocab_size + d_model));
     embeddings = MatrixXd::Random(vocab_size, d_model) * limit;

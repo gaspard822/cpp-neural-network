@@ -3,18 +3,13 @@
 
 #include "core/layer.hpp"
 
-#define SOS_ID 0
-#define EOS_ID 1
-#define PAD_ID 2
-
 class InputLayer: public Layer {
     private:
         int seq, d_model, vocab_size;
-        string path;
         MatrixXd embeddings;
 
     public:
-        InputLayer(int seq, int d_model, const string& path);
+        InputLayer(int seq, int d_model);
 
         void forward(const MatrixXd& input) override;
 

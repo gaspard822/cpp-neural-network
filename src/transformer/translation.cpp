@@ -103,7 +103,7 @@ void doing_stuff() {
 
     test_tokenizer(tokenizer);
 
-    InputLayer* input_layer = new InputLayer(seq, d_model, path_to_text);
+    InputLayer* input_layer = new InputLayer(seq, d_model);
     nn.add_layer(input_layer);
     MultiHeadAttention* mha_layer_1 = new MultiHeadAttention(2, 4, 2, AttentionMode::DECODER_MASKED_SELF);
     nn.add_layer(mha_layer_1);
