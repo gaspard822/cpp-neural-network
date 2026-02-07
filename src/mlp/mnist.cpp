@@ -205,7 +205,7 @@ void train_test_mnist() {
     nn.add_layer(layer_4);
     
     // Train
-    nn.train(X_train, Y_train, 300, 1024, X_val, Y_val, false, false);
+    nn.train(X_train, Y_train, 30, 1024, X_val, Y_val, false, false);
 
     // Saving the model and loading it again to test the save_model() and load_model() functions
     // Save the trained model

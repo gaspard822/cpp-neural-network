@@ -6,3 +6,4 @@ digit-recognizer/
 models/*
 !models/final_model.txt
 translation/
+LLMs.pdf

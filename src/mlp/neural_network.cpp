@@ -65,14 +65,17 @@ MatrixXd NeuralNetwork::forward(const MatrixXd& input) {
     return *activation;
 }
 
+
 void NeuralNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
     // First compute the derivative of the loss with respect to the loss function
-    MatrixXd d_loss = loss_function->derivative(y_true, y_pred);
+    MatrixXd d_loss_buf = loss_function->derivative(y_true, y_pred);
+    const MatrixXd* d_loss = &d_loss_buf;
     // Propagate the gradients with respect to each layer back into the network and update the parameters accordingly
     int num_layers = layers.size();
     for (int i = num_layers - 1; i >= 0; i--) {
-        d_loss = layers[i]->backward(d_loss);
+        layers[i]->backward(*d_loss);
         optimizer->update_parameters(i);
+        d_loss = &layers[i]->get_d_input();
     }
 }
 

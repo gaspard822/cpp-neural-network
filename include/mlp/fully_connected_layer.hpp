@@ -65,12 +65,11 @@ class FullyConnectedLayer : public Layer {
         void forward(const MatrixXd& input) override;
 
         /**
-        * Does the backward pass and computes input gradients. See the "Technical details" section of the
-        * README for context on the internal variable names used in this function.
+        * Does the backward pass and computes input gradients and saves the gradient with respect to the layer input in d_input.
+        * See the "Technical details" section of the README for context on the internal variable names used in this function.
         * @param d_output Gradient from the following layer
-        * @return MatrixXd Gradient with respect to the layer input
         */
-        MatrixXd backward(const MatrixXd& d_output) override;
+        void backward(const MatrixXd& d_output) override;
 
         /**
          * Performs inference without modifying the internal state of the fully connected layer.
@@ -82,6 +81,8 @@ class FullyConnectedLayer : public Layer {
         // Various straightforward getters
         unique_ptr<Gradients> get_gradients() override;
         unique_ptr<Gradients> get_params() override;
+        const MatrixXd& get_output() const override;
+        const MatrixXd& get_d_input() const override;
         const MatrixXd& get_weights() const;
         const VectorXd& get_bias() const;
         const RowVectorXd& get_gamma() const;

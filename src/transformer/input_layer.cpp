@@ -28,7 +28,7 @@ void InputLayer::forward(const MatrixXd& layer_input) {
     
 }
 
-MatrixXd InputLayer::backward(const MatrixXd& d_output) {
+void InputLayer::backward(const MatrixXd& d_output) {
     // d_output : (seq, d_model)
     
 }
@@ -36,15 +36,27 @@ MatrixXd InputLayer::backward(const MatrixXd& d_output) {
 MatrixXd InputLayer::infer(const MatrixXd& layer_input) const {
     return MatrixXd();
 }
+
 unique_ptr<Gradients> InputLayer::get_gradients() {
     return nullptr;
 }
+
 unique_ptr<Gradients> InputLayer::get_params() {
     return nullptr;
 }
+
+const MatrixXd& InputLayer::get_output() const {
+    return output;
+}
+
+const MatrixXd& InputLayer::get_d_input() const {
+    return d_input;
+}
+
 string InputLayer::get_activation_name() const {
     return "";
 }
+
 LayerType InputLayer::get_type() const {
     return LayerType::INPUT_LAYER;
 }

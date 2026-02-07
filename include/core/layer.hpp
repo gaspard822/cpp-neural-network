@@ -41,7 +41,7 @@ enum class LayerType {
  */
 class Layer {
     protected:
-        MatrixXd input, output;
+        MatrixXd d_input, output;
     
     public:
         Layer() = default;
@@ -54,11 +54,10 @@ class Layer {
         virtual void forward(const MatrixXd& input) = 0;
 
         /**
-         * Does the backward pass using the given output gradient.
+         * Does the backward pass using the given output gradient and saves the gradient with respect to the layer input in d_input.
          * @param d_output Gradient of the loss passed by the following layer
-         * @return MatrixXd Gradient with respect to the layer input
          */
-        virtual MatrixXd backward(const MatrixXd& d_output) = 0;
+        virtual void backward(const MatrixXd& d_output) = 0;
 
         /**
          * Does inference (forward pass) without modifying the internal state of the layer.
@@ -71,7 +70,8 @@ class Layer {
         // Various straightforward getters.
         virtual unique_ptr<Gradients> get_gradients() = 0;
         virtual unique_ptr<Gradients> get_params() = 0;
-        virtual const MatrixXd& get_output() const;
+        virtual const MatrixXd& get_output() const = 0;
+        virtual const MatrixXd& get_d_input() const = 0;
 
         /**
          * Returns the name of the activation function used by the layer (used in

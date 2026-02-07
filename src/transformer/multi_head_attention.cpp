@@ -48,15 +48,14 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, AttentionMod
 }
 
 // TODO: CAN MAKE A LOT OF THINGS WAY MORE EFFICIENT BY NOT DOING THE OPERATIONS ON THE PADDINGS.
-void MultiHeadAttention::forward(const MatrixXd& layer_input) {
-    // layer_input : (seq, d_model)
+void MultiHeadAttention::forward(const MatrixXd& input) {
+    // input : (seq, d_model)
     double epsilon = 1e-8;
     int pad_len = seq - valid_len;
 
-    input = layer_input;
     mean = input.rowwise().mean();
 
-    MatrixXd diff = input.colwise() - mean;
+    diff = input.colwise() - mean;
     VectorXd variance = diff.array().square().rowwise().mean();
     inv_sqrt_var_plus_epsilon = VectorXd::Ones(variance.rows()).array() / (variance.array() + epsilon).sqrt();
 
@@ -100,7 +99,7 @@ void MultiHeadAttention::forward(const MatrixXd& layer_input) {
     output = output + input;
 }
 
-MatrixXd MultiHeadAttention::backward(const MatrixXd& d_output) {
+void MultiHeadAttention::backward(const MatrixXd& d_output) {
     // d_output : (seq, d_model)
     int pad_len = seq - valid_len;
 
@@ -134,26 +133,37 @@ MatrixXd MultiHeadAttention::backward(const MatrixXd& d_output) {
     d_beta_self = d_E_bar.colwise().sum();
     MatrixXd d_E_hat = d_E_bar.array().rowwise() * gamma_self.array();
 
-    MatrixXd diff = input.colwise() - mean;
     MatrixXd d_E = diff.array().colwise() * inv_sqrt_var_plus_epsilon.array().pow(3);
     d_E = d_E.array().colwise() * (d_E_hat.array() * diff.array()).rowwise().sum();
     d_E = d_E.array().colwise() + (inv_sqrt_var_plus_epsilon.array() * d_E_hat.rowwise().sum().array());
     d_E = d_E.array() * (-1.0/d_model) + d_E_hat.array().colwise() * inv_sqrt_var_plus_epsilon.array() + d_output.array();
-    return d_E;
+    d_input = d_E;
 }
 
-MatrixXd MultiHeadAttention::infer(const MatrixXd& layer_input) const {
+MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
     return MatrixXd();
 }
+
 unique_ptr<Gradients> MultiHeadAttention::get_gradients() {
     return nullptr;
 }
+
 unique_ptr<Gradients> MultiHeadAttention::get_params() {
     return nullptr;
 }
+
+const MatrixXd& MultiHeadAttention::get_output() const {
+    return output;
+}
+
+const MatrixXd& MultiHeadAttention::get_d_input() const {
+    return d_input;
+}
+
 string MultiHeadAttention::get_activation_name() const {
     return "";
 }
+
 LayerType MultiHeadAttention::get_type() const {
     return LayerType::MULTI_HEAD_ATTENTION_LAYER;
 }

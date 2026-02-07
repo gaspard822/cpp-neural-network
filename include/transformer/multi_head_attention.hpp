@@ -17,6 +17,7 @@ class MultiHeadAttention : public Layer {
         RowVectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
         RowVectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
         MatrixXd E_hat, E_bar;
+        MatrixXd diff;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         vector<MatrixXd> Q, K, V;
         vector<MatrixXd> softmaxJ, head;
@@ -29,12 +30,15 @@ class MultiHeadAttention : public Layer {
 
         void forward(const MatrixXd& input) override;
 
-        MatrixXd backward(const MatrixXd& d_output) override;
+        void backward(const MatrixXd& d_output) override;
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
         unique_ptr<Gradients> get_gradients() override;
         unique_ptr<Gradients> get_params() override;
+        const MatrixXd& get_output() const override;
+        const MatrixXd& get_d_input() const override;
+
         string get_activation_name() const override;
         LayerType get_type() const override;
 

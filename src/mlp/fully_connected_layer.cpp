@@ -65,9 +65,8 @@ FullyConnectedLayer::~FullyConnectedLayer() {
     delete activation;
 }
 
-void FullyConnectedLayer::forward(const MatrixXd& layer_input) {
+void FullyConnectedLayer::forward(const MatrixXd& input) {
     double epsilon = 1e-8;
-    input = layer_input;
     // Compute the feature-wise mean
     RowVectorXd mean = input.colwise().mean();
     // Compute the normalized input and store it in a_hat
@@ -87,7 +86,7 @@ void FullyConnectedLayer::forward(const MatrixXd& layer_input) {
     running_variance = momentum * running_variance + (1-momentum) * variance;
 }
 
-MatrixXd FullyConnectedLayer::backward(const MatrixXd& d_output) {
+void FullyConnectedLayer::backward(const MatrixXd& d_output) {
     int num_points = d_output.rows();
     // Compute the derivative w.r.t. to z the unactivated output
     MatrixXd dz;
@@ -107,8 +106,7 @@ MatrixXd FullyConnectedLayer::backward(const MatrixXd& d_output) {
     // Compute the derivative w.r.t. to the normalized input
     MatrixXd da_hat = da_bar.array().rowwise() * gamma.array();
     // Compute the derivative w.r.t. to the input and return it
-    MatrixXd da = da_hat.array().rowwise() * (inv_sqrt_var_plus_epsilon.array());
-    return da;
+    d_input = da_hat.array().rowwise() * (inv_sqrt_var_plus_epsilon.array());
 }
 
 MatrixXd FullyConnectedLayer::infer(const MatrixXd& layer_input) const {
@@ -141,8 +139,12 @@ const VectorXd& FullyConnectedLayer::get_bias() const {
     return bias;
 }
 
-const MatrixXd& Layer::get_output() const {
+const MatrixXd& FullyConnectedLayer::get_output() const {
     return output;
+}
+
+const MatrixXd& FullyConnectedLayer::get_d_input() const {
+    return d_input;
 }
 
 const RowVectorXd& FullyConnectedLayer::get_gamma() const {
