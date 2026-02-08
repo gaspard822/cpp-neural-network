@@ -2,12 +2,18 @@
 #define FEED_FORWARD_HPP
 
 #include "core/layer.hpp"
+#include "core/activation_function.hpp"
 
 class FeedForward: public Layer {
     private:
+        MatrixXd X, U, H; // intermediary computations needed for the backpropagation
+        MatrixXd W1, W2, d_W1, d_W2;
+        RowVectorXd b1, b2, d_b1, d_b2;
+        ActivationFunction* activation;
+        int seq, d_model, d_ff;
 
     public:
-        FeedForward(int seq, int d_model);
+        FeedForward(ActivationFunction* activation, int seq, int d_model, int d_ff);
 
         void forward(const MatrixXd& input) override;
 

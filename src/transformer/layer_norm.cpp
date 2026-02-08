@@ -9,7 +9,7 @@ LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon
 }
 
 void LayerNorm::forward(const MatrixXd& input) {
-    // input : (seq, d_model) FIXME: Always that case that input \in (seq, d_model)?
+    // input : (seq, d_model)
     mean = input.rowwise().mean();  // per-token average
     diff = input.colwise() - mean;  // centered tokens
     VectorXd variance = diff.array().square().rowwise().mean();
