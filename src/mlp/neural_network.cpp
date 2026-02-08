@@ -65,7 +65,6 @@ MatrixXd NeuralNetwork::forward(const MatrixXd& input) {
     return *activation;
 }
 
-
 void NeuralNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
     // First compute the derivative of the loss with respect to the loss function
     MatrixXd d_loss_buf = loss_function->derivative(y_true, y_pred);

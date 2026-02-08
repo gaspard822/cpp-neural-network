@@ -1,26 +1,8 @@
-#include <iostream>
 #include "transformer/multi_head_attention.hpp"
 
-MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, AttentionMode mode, MultiHeadAttention* encoder_mha) :
-        seq(seq), d_model(d_model), h(h), mode(mode), encoder_mha(encoder_mha) {
+MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
+        seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), mode(mode) {
     
-    if (mode == AttentionMode::DECODER_CROSS && !encoder_mha) throw runtime_error("The corresponding encoder was not provided");
-    if (mode == AttentionMode::DECODER_CROSS && encoder_mha->get_mode() != AttentionMode::ENCODER_SELF) throw runtime_error("The given mha is not an encoder");
-
-    momentum = 0.9;
-    // for now, let d_k = d_v = d_model / h
-    d_k = d_model / h;
-    d_v = d_model / h;
-
-    gamma_self = RowVectorXd::Ones(d_model);
-    beta_self = RowVectorXd::Zero(d_model);
-    if (is_cross_attention()) {
-        gamma_cross = RowVectorXd::Ones(d_model);
-        beta_cross = RowVectorXd::Zero(d_model);
-    }
-    mean = VectorXd::Zero(seq);
-    inv_sqrt_var_plus_epsilon = VectorXd::Zero(seq);
-
     // Glorot initialization for the parameter matrices
     WQ.resize(h);
     WK.resize(h);
@@ -47,34 +29,24 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, AttentionMod
     head.resize(h);
 }
 
-// TODO: CAN MAKE A LOT OF THINGS WAY MORE EFFICIENT BY NOT DOING THE OPERATIONS ON THE PADDINGS.
 void MultiHeadAttention::forward(const MatrixXd& input) {
     // input : (seq, d_model)
-    double epsilon = 1e-8;
-    int pad_len = seq - valid_len;
-
-    mean = input.rowwise().mean();
-
-    diff = input.colwise() - mean;
-    VectorXd variance = diff.array().square().rowwise().mean();
-    inv_sqrt_var_plus_epsilon = VectorXd::Ones(variance.rows()).array() / (variance.array() + epsilon).sqrt();
-
-    E_hat = diff.array().colwise() / inv_sqrt_var_plus_epsilon.array();
-    E_bar = (E_hat.array().rowwise() * gamma_self.array()).rowwise() + beta_self.array();
-
+    X = input;
     for (int i = 0; i < h; i++) {
-        Q[i] = E_bar * WQ[i];
-        K[i] = E_bar * WK[i];
-        V[i] = E_bar * WV[i];
+        Q[i] = input * WQ[i];
+        if (!is_cross_attention()) {
+            K[i] = input * WK[i];
+            V[i] = input * WV[i];
+        } else {
+            if (encoder_output.size() == 0) throw runtime_error("encoder_output not set for cross-attention");
+            K[i] = encoder_output * WK[i];
+            V[i] = encoder_output * WV[i];
+        }
         softmaxJ[i] = (Q[i] * K[i].transpose()).array() * (1/sqrt(d_k));
         if (is_masked_attention()) {
             MatrixXd M = MatrixXd::Constant(seq, seq, -1e15);
             M.triangularView<Lower>().setZero();
             softmaxJ[i] += M;
-        }
-        if (pad_len > 0) {
-            // QK^T[i, j] = how much token i attends token j => need to set the right-most columns to -inf, so that no token attends a padding token
-            softmaxJ[i].rightCols(pad_len).setConstant(-1e15);
         }
         VectorXd J_i_max = softmaxJ[i].rowwise().maxCoeff();
         softmaxJ[i] = softmaxJ[i] - J_i_max.replicate(1, seq);
@@ -82,17 +54,10 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         VectorXd shifted_softmaxJi_exp_sum = softmaxJ[i].rowwise().sum();
         softmaxJ[i] = softmaxJ[i].array().colwise() / shifted_softmaxJi_exp_sum.array();
     }
-    
-    // TODO: WOULD MAKE SENSE TO DELETE THIS input, output FROM LAYER, AS IT STORES SOME EXTRA MATRICES FOR NO REASON
-    // => WOULD NEED TO MODIFY neural_network::forward()
 
     output = MatrixXd::Zero(seq, d_model);
     for (int i = 0; i < h; i++) {
         head[i] = softmaxJ[i] * V[i];
-        if (pad_len > 0) {
-            // this is needed, so that the padding tokens don't attend anything
-            head[i].bottomRows(pad_len).setZero();
-        }
         output += head[i] * WO[i];
     }
 
@@ -101,9 +66,8 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
 
 void MultiHeadAttention::backward(const MatrixXd& d_output) {
     // d_output : (seq, d_model)
-    int pad_len = seq - valid_len;
-
-    MatrixXd d_E_bar = MatrixXd::Zero(seq, d_model);
+    d_input = d_output;
+    if (is_cross_attention()) d_encoder_output = MatrixXd::Zero(seq, d_model);
     for (int i = 0; i < h; i++) {
         MatrixXd d_head = d_output * WO[i].transpose();
         d_WO[i] = head[i].transpose() * d_output;
@@ -116,32 +80,30 @@ void MultiHeadAttention::backward(const MatrixXd& d_output) {
             M.triangularView<Lower>().setOnes();
             d_J.array() *= M.array();
         }
-        if (pad_len > 0) {
-            d_J.rightCols(pad_len).setZero();
-        }
 
         MatrixXd d_V = softmaxJ[i].transpose() * d_head;
         MatrixXd d_K = (d_J.transpose() * Q[i]).array() * (1/sqrt(d_k));
         MatrixXd d_Q = (d_J * K[i]).array() * (1/sqrt(d_k));
-        d_E_bar += d_Q * WQ[i].transpose() + d_K * WK[i].transpose() + d_V * WV[i].transpose();
-        d_WQ[i] = E_bar.transpose() * d_Q;
-        d_WK[i] = E_bar.transpose() * d_K;
-        d_WV[i] = E_bar.transpose() * d_V;
+        d_WQ[i] = X.transpose() * d_Q;
+        if (!is_cross_attention()) {
+            d_WK[i] = X.transpose() * d_K;
+            d_WV[i] = X.transpose() * d_V;
+            d_input += d_Q * WQ[i].transpose() + d_K * WK[i].transpose() + d_V * WV[i].transpose();
+        } else {
+            d_WK[i] = encoder_output.transpose() * d_K;
+            d_WV[i] = encoder_output.transpose() * d_V;
+            d_input += d_Q * WQ[i].transpose();
+            d_encoder_output += d_K * WK[i].transpose() + d_V * WV[i].transpose();
+        }
     }
-
-    d_gamma_self = (d_E_bar.array() * E_hat.array()).colwise().sum();
-    d_beta_self = d_E_bar.colwise().sum();
-    MatrixXd d_E_hat = d_E_bar.array().rowwise() * gamma_self.array();
-
-    MatrixXd d_E = diff.array().colwise() * inv_sqrt_var_plus_epsilon.array().pow(3);
-    d_E = d_E.array().colwise() * (d_E_hat.array() * diff.array()).rowwise().sum();
-    d_E = d_E.array().colwise() + (inv_sqrt_var_plus_epsilon.array() * d_E_hat.rowwise().sum().array());
-    d_E = d_E.array() * (-1.0/d_model) + d_E_hat.array().colwise() * inv_sqrt_var_plus_epsilon.array() + d_output.array();
-    d_input = d_E;
 }
 
 MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
     return MatrixXd();
+}
+
+void MultiHeadAttention::set_encoder_output(const MatrixXd& enc_out) {
+    encoder_output = enc_out;
 }
 
 unique_ptr<Gradients> MultiHeadAttention::get_gradients() {
@@ -178,8 +140,4 @@ bool MultiHeadAttention::is_cross_attention() const {
 
 bool MultiHeadAttention::is_masked_attention() const {
     return mode == AttentionMode::DECODER_MASKED_SELF;
-}
-
-void MultiHeadAttention::set_valid_len(int v) {
-    valid_len = v;
 }

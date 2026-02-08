@@ -12,27 +12,23 @@ enum class AttentionMode {
 class MultiHeadAttention : public Layer {
     private:
         AttentionMode mode;
-        MultiHeadAttention* encoder_mha;
-        VectorXd mean, inv_sqrt_var_plus_epsilon;
-        RowVectorXd gamma_self, beta_self, d_gamma_self, d_beta_self;
-        RowVectorXd gamma_cross, beta_cross, d_gamma_cross, d_beta_cross;
-        MatrixXd E_hat, E_bar;
-        MatrixXd diff;
+        MatrixXd X;
+        MatrixXd encoder_output, d_encoder_output;
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         vector<MatrixXd> Q, K, V;
         vector<MatrixXd> softmaxJ, head;
-        double momentum;
         int seq, d_model, h, d_k, d_v;
-        int valid_len;
 
     public:
-        MultiHeadAttention(int seq, int d_model, int h, AttentionMode mode, MultiHeadAttention* encoder = nullptr);
+        MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode);
 
         void forward(const MatrixXd& input) override;
 
         void backward(const MatrixXd& d_output) override;
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
+
+        void set_encoder_output(const MatrixXd& enc_out);
 
         unique_ptr<Gradients> get_gradients() override;
         unique_ptr<Gradients> get_params() override;
@@ -45,7 +41,6 @@ class MultiHeadAttention : public Layer {
         AttentionMode get_mode() const;
         bool is_cross_attention() const;
         bool is_masked_attention() const;
-        void set_valid_len(int valid_len);
 };
 
 #endif
