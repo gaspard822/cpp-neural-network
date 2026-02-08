@@ -43,3 +43,31 @@ void FeedForward::backward(const MatrixXd& d_output) {
     d_b1 = d_U.colwise().sum();
     d_input = d_U * W1.transpose() + d_output;
 }
+
+MatrixXd FeedForward::infer(const MatrixXd& input) const {
+    return MatrixXd();
+}
+
+unique_ptr<Gradients> FeedForward::get_gradients() {
+    return nullptr;
+}
+
+unique_ptr<Gradients> FeedForward::get_params() {
+    return nullptr;
+}
+
+const MatrixXd& FeedForward::get_output() const {
+    return output;
+}
+
+const MatrixXd& FeedForward::get_d_input() const {
+    return d_input;
+}
+
+string FeedForward::get_activation_name() const {
+    return "";
+}
+
+LayerType FeedForward::get_type() const {
+    return LayerType::FEED_FORWARD;
+}

@@ -29,3 +29,31 @@ void LayerNorm::backward(const MatrixXd& d_output) {
     d_input = d_input.array().colwise() + (inv_sqrt_var_plus_epsilon.array() * d_normalized_input.rowwise().sum().array());
     d_input = d_input.array() * (-1.0/d_model) + d_normalized_input.array().colwise() * inv_sqrt_var_plus_epsilon.array();
 }
+
+MatrixXd LayerNorm::infer(const MatrixXd& input) const {
+    return MatrixXd();
+}
+
+unique_ptr<Gradients> LayerNorm::get_gradients() {
+    return nullptr;
+}
+
+unique_ptr<Gradients> LayerNorm::get_params() {
+    return nullptr;
+}
+
+const MatrixXd& LayerNorm::get_output() const {
+    return output;
+}
+
+const MatrixXd& LayerNorm::get_d_input() const {
+    return d_input;
+}
+
+string LayerNorm::get_activation_name() const {
+    return "";
+}
+
+LayerType LayerNorm::get_type() const {
+    return LayerType::LAYER_NORM;
+}

@@ -81,7 +81,7 @@ pair<vector<VectorXi>, vector<VectorXi>> load_tokenized_sentences_from_csv(const
 
 void test_tokenizer(Tokenizer* tokenizer) {
     const string sentence = "Hello, my name is Benoît";
-    VectorXi encoding = tokenizer->encode(sentence);
+    vector<int> encoding = tokenizer->encode(sentence);
     string decoding = tokenizer->decode(encoding);
     cout << "Sentence: " << sentence << endl;
     cout << "Encoding: ";
@@ -97,25 +97,12 @@ void doing_stuff() {
     NeuralNetwork nn("CrossEntropy", "VanillaSGD");
 
     int seq = 2, d_model = 4, h = 2;
+    int d_k, d_v = d_model / h;
     const string path_to_text = "../translation/en-fr-short.csv";
 
     Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
 
     test_tokenizer(tokenizer);
-
-    InputLayer* input_layer = new InputLayer(seq, d_model);
-    nn.add_layer(input_layer);
-    MultiHeadAttention* mha_layer_1 = new MultiHeadAttention(2, 4, 2, AttentionMode::DECODER_MASKED_SELF);
-    nn.add_layer(mha_layer_1);
-    FullyConnectedLayer* fc_layer_1 = new FullyConnectedLayer(new Relu(), 2, 2);
-    MatrixXd m(2, 4);
-    m << 1, 2, 7, 1,
-         4, 2, 2, 3;
-    MatrixXd target(2, 2);
-
-    // nn.forward(m);
-    mha_layer_1->forward(m);
-    mha_layer_1->backward(m);
 }
 
 

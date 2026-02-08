@@ -9,7 +9,6 @@ Tokenizer::Tokenizer(const string& csv_path, int max_rows) : csv_path(csv_path),
     build_vocab_from_csv();
 }
 
-
 void Tokenizer::build_vocab_from_csv() {
     ifstream in(csv_path, ios::binary);
     if (!in) {
@@ -39,10 +38,9 @@ void Tokenizer::build_vocab_from_csv() {
     vocab_size = next_id;
 }
 
-
-VectorXi Tokenizer::encode(const string& text) const {
+vector<int> Tokenizer::encode(const string& text) const {
     int i = 0;
-    VectorXi ids(text.size() + 2);
+    vector<int> ids(text.size() + 2);
     ids[i++] = SOS_ID;
     
     for (unsigned char c: text) {
@@ -60,8 +58,7 @@ VectorXi Tokenizer::encode(const string& text) const {
     return ids;
 }
 
-
-string Tokenizer::decode(const VectorXi& ids) const {
+string Tokenizer::decode(const vector<int>& ids) const {
     string chars;
     int ids_size = ids.size();
     chars.reserve(ids_size);
@@ -82,4 +79,8 @@ string Tokenizer::decode(const VectorXi& ids) const {
     }
 
     return chars;
+}
+
+const int Tokenizer::get_vocab_size() const {
+    return vocab_size;
 }
