@@ -1,3 +1,4 @@
+#include <iostream>
 #include "transformer/feed_forward.hpp"
 
 FeedForward::FeedForward(ActivationFunction* activation,
@@ -28,11 +29,14 @@ FeedForward::FeedForward(ActivationFunction* activation,
 }
 
 void FeedForward::forward(const MatrixXd& input) {
-    // input : (seq, d_model)
+    // input : (num_tokens, d_model)
+    cout << "========== FeedForward::forward() ==========" << endl;  // debug
     X = input;
     U = (input * W1).rowwise() + b1;
+    cout << "U (" << U.rows() << "," << U.cols() << "):" << endl << U << endl; // debug
     H = activation->apply(U);
     output = ((H * W2).rowwise() + b2) + input;
+    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void FeedForward::backward(const MatrixXd& d_output) {

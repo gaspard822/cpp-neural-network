@@ -28,6 +28,7 @@ set(SOURCES
     src/transformer/feed_forward.cpp
     src/transformer/input_layer.cpp
     src/transformer/layer_norm.cpp
+    src/transformer/linear_layer.cpp
     src/transformer/multi_head_attention.cpp
     src/transformer/tokenizer.cpp
     src/transformer/transformer.cpp

@@ -1,12 +1,9 @@
 #include <iostream>
-#include "transformer/tokenizer.hpp"
-#include "transformer/input_layer.hpp"
-#include "transformer/multi_head_attention.hpp"
-#include "mlp/neural_network.hpp"
-#include "mlp/fully_connected_layer.hpp"
-#include "core/relu.hpp"
-#include "transformer/transformer.hpp"
 
+#include "transformer/transformer.hpp"
+#include "core/relu.hpp"
+#include "core/cross_entropy_loss.hpp"
+#include "core/adam_optimizer.hpp"
 
 /*
 static inline pair<string, string> parse_csv_line_two_columns(const string& line) {
@@ -94,8 +91,6 @@ void test_tokenizer(Tokenizer* tokenizer) {
 
 
 void doing_stuff() {
-    NeuralNetwork nn("CrossEntropy", "VanillaSGD");
-
     int seq = 2, d_model = 4, h = 2;
     int d_k, d_v = d_model / h;
     const string path_to_text = "../translation/en-fr-short.csv";
@@ -107,6 +102,20 @@ void doing_stuff() {
 
 
 void train_test_translation() {
-    NeuralNetwork encoder(nullptr, "Adam");
-    
+    const string path_to_text = "../translation/en-fr-short.csv";
+    int num_encoder_layers = 2;
+    int num_decoder_layers = 2;
+    int seq = 64;
+    int d_model = 8;
+    int h = 2;
+    Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
+    ActivationFunction* activation = new Relu();
+    LossFunction* loss_function = new CrossEntropy();
+    Optimizer* optimizer = new AdamOptimizer(nullptr);
+
+    Transformer* transformer = new Transformer(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer, activation, loss_function, optimizer);
+
+    const string sentence = "Hello";
+    cout << "Forwarded sentence: " << sentence << endl;  // debug
+    MatrixXd forward_X_batch = transformer->forward(sentence);
 }

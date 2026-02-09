@@ -43,11 +43,12 @@ int copy_file(int n) {
 
 int main() {
 
-    train_test_mnist();
+    // train_test_mnist();
     // infer_mnist();
 
     // copy_file(100000);
     // doing_stuff();
+    train_test_translation();
 
     return 0;
 }

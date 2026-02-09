@@ -28,13 +28,20 @@ MatrixXd InputLayer::compute_positional_encodings(int seq, int d_model) {
 }
 
 void InputLayer::forward(const string& text) {
+    cout << "========== InputLayer::forward() ==========" << endl;  // debug
     token_ids = tokenizer->encode(text);
+    cout << "token_ids:" << endl;
+    for (auto it = token_ids.begin(); it != token_ids.end(); it++) {  // debug
+        cout << *it << ", ";
+    }
+    cout << endl;
     int num_tokens = token_ids.size();
-    output = MatrixXd(num_tokens, d_model);
+    output = MatrixXd::Zero(num_tokens, d_model);
     for (int i = 0; i < num_tokens; i++) {
         output.row(i) = embeddings.row(token_ids[i]);
     }
     output += positional_encodings.topRows(output.rows());
+    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void InputLayer::backward(const MatrixXd& d_output) {

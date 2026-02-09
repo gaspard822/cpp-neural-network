@@ -7,16 +7,18 @@
 
 class Decoder {
     private:
-        int seq, d_model, h, d_k, d_v;
-        LayerNorm* norm_1;
-        MultiHeadAttention* mha_1;
-        LayerNorm* norm_2;
-        MultiHeadAttention* mha_2;
-        LayerNorm* norm_3;
-        FeedForward* feed_forward;
+        int seq, d_model, h, d_k, d_v, d_ff;
+        MultiHeadAttention* mha_cross;
+        vector<Layer*> layers;
+        MatrixXd output;
+        ActivationFunction* activation;
         
     public:
-        Decoder(int seq, int d_model, int h, int d_k, int d_v);
+        Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);
+
+        void forward(const MatrixXd& encoder_input, const MatrixXd& decoder_input);
+
+        const MatrixXd& get_output() const;
 };
 
 #endif

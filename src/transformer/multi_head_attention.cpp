@@ -1,3 +1,4 @@
+#include <iostream>
 #include "transformer/multi_head_attention.hpp"
 
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
@@ -30,7 +31,15 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
 }
 
 void MultiHeadAttention::forward(const MatrixXd& input) {
-    // input : (seq, d_model)
+    // input : (num_tokens, d_model)
+    cout << "========== MultiHeadAttention::forward() ==========" << endl;  // debug
+    int num_tokens;
+    if (!is_cross_attention()) {
+        num_tokens = input.rows();
+    } else {
+        // if we are doing cross-attention, the number of tokens is the max between the input of this layer and the encoder output
+        num_tokens = input.rows() > encoder_output.rows() ? input.rows() : encoder_output.rows();
+    }
     X = input;
     for (int i = 0; i < h; i++) {
         Q[i] = input * WQ[i];
@@ -41,27 +50,33 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
             if (encoder_output.size() == 0) throw runtime_error("encoder_output not set for cross-attention");
             K[i] = encoder_output * WK[i];
             V[i] = encoder_output * WV[i];
+            cout << "encoder_output (" << encoder_output.rows() << "," << encoder_output.cols() << "):" << endl << encoder_output << endl; // debug
+            // TODO: NEED TO ADD PADDING TO MAKE SURE THAT Q[i], WHICH COMES FROM THE DECODER, HAS THE SAME DIMENSIONS AS K[i] AND V[i]
         }
         softmaxJ[i] = (Q[i] * K[i].transpose()).array() * (1/sqrt(d_k));
         if (is_masked_attention()) {
-            MatrixXd M = MatrixXd::Constant(seq, seq, -1e15);
+            MatrixXd M = MatrixXd::Constant(num_tokens, num_tokens, -1e15);
             M.triangularView<Lower>().setZero();
             softmaxJ[i] += M;
         }
+        cout << "J[i] (" << softmaxJ[i].rows() << "," << softmaxJ[i].cols() << "):" << endl << softmaxJ[i] << endl; // debug
         VectorXd J_i_max = softmaxJ[i].rowwise().maxCoeff();
-        softmaxJ[i] = softmaxJ[i] - J_i_max.replicate(1, seq);
+        cout << "J_i_max:" << endl << J_i_max << endl; // debug
+        softmaxJ[i] = softmaxJ[i] - J_i_max.replicate(1, num_tokens);
         softmaxJ[i] = softmaxJ[i].array().exp();
         VectorXd shifted_softmaxJi_exp_sum = softmaxJ[i].rowwise().sum();
         softmaxJ[i] = softmaxJ[i].array().colwise() / shifted_softmaxJi_exp_sum.array();
+        cout << "softmaxJ[i] (" << softmaxJ[i].rows() << "," << softmaxJ[i].cols() << "):" << endl << softmaxJ[i] << endl; // debug
     }
 
-    output = MatrixXd::Zero(seq, d_model);
+    output = MatrixXd::Zero(num_tokens, d_model);
     for (int i = 0; i < h; i++) {
         head[i] = softmaxJ[i] * V[i];
         output += head[i] * WO[i];
     }
 
     output = output + input;
+    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void MultiHeadAttention::backward(const MatrixXd& d_output) {
