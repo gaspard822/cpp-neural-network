@@ -16,16 +16,16 @@
 
 using namespace std;
 
-NeuralNetwork::NeuralNetwork() {
+MultiLayerPerceptronNetwork::MultiLayerPerceptronNetwork() {
     loss_function = nullptr;
     optimizer = nullptr;
 }
 
-NeuralNetwork::NeuralNetwork(LossFunction* loss, Optimizer* optim) : loss_function(loss), optimizer(optim) {
+MultiLayerPerceptronNetwork::MultiLayerPerceptronNetwork(LossFunction* loss, Optimizer* optim) : Network(loss, optim) {
     optimizer->set_network(this);
 }
 
-NeuralNetwork::NeuralNetwork(const string& loss, const string& optim) {
+MultiLayerPerceptronNetwork::MultiLayerPerceptronNetwork(const string& loss, const string& optim) {
     if (loss == "MeanSquaredError") {
         loss_function = new MeanSquaredError();
     } else if (loss == "CrossEntropy") {
@@ -43,7 +43,7 @@ NeuralNetwork::NeuralNetwork(const string& loss, const string& optim) {
     }
 }
 
-NeuralNetwork::~NeuralNetwork() {
+MultiLayerPerceptronNetwork::~MultiLayerPerceptronNetwork() {
     for (Layer* layer : layers) {
         delete layer;
     }
@@ -51,12 +51,11 @@ NeuralNetwork::~NeuralNetwork() {
     if (optimizer) delete optimizer;
 }
 
-void NeuralNetwork::add_layer(Layer* layer) {
+void MultiLayerPerceptronNetwork::add_layer(Layer* layer) {
     layers.push_back(layer);
-    optimizer->update_optimizer(layer);
 }
 
-MatrixXd NeuralNetwork::forward(const MatrixXd& input) {
+MatrixXd MultiLayerPerceptronNetwork::forward(const MatrixXd& input) const {
     const MatrixXd* activation = &input;
     for (Layer* layer: layers) {
         layer->forward(*activation);
@@ -65,7 +64,7 @@ MatrixXd NeuralNetwork::forward(const MatrixXd& input) {
     return *activation;
 }
 
-void NeuralNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
+void MultiLayerPerceptronNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) const {
     // First compute the derivative of the loss with respect to the loss function
     MatrixXd d_loss_buf = loss_function->derivative(y_true, y_pred);
     const MatrixXd* d_loss = &d_loss_buf;
@@ -73,13 +72,13 @@ void NeuralNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
     int num_layers = layers.size();
     for (int i = num_layers - 1; i >= 0; i--) {
         layers[i]->backward(*d_loss);
-        optimizer->update_parameters(i);
         d_loss = &layers[i]->get_d_input();
     }
+    optimizer->update_parameters();
 }
 
 // If the argument batch_size is <= 0, then no mini-batching is done
-void NeuralNetwork::train(const MatrixXd& X_train, const MatrixXd& Y_train, int epochs, int batch_size,
+void MultiLayerPerceptronNetwork::train(const MatrixXd& X_train, const MatrixXd& Y_train, int epochs, int batch_size,
                           const MatrixXd& X_val, const MatrixXd& Y_val, bool early_stopping, bool verbose) {
     int patience = 10;
     int epochs_without_improvement = 0;
@@ -184,7 +183,7 @@ void NeuralNetwork::train(const MatrixXd& X_train, const MatrixXd& Y_train, int 
     }
 }
 
-MatrixXd NeuralNetwork::infer(const MatrixXd& input) const {
+MatrixXd MultiLayerPerceptronNetwork::infer(const MatrixXd& input) const {
     MatrixXd activation = input;
     for (Layer* layer: layers) {
         activation = layer->infer(activation);
@@ -192,7 +191,7 @@ MatrixXd NeuralNetwork::infer(const MatrixXd& input) const {
     return activation;
 }
 
-void NeuralNetwork::save_model(const string& path) const {
+void MultiLayerPerceptronNetwork::save_model(const string& path) const {
     // In this function, we save:
     // 1. The number of layers
     // 2. The type of the optimizer
@@ -232,8 +231,8 @@ void NeuralNetwork::save_model(const string& path) const {
     file << loss_function->get_loss_name() << "\n";
 }
 
-void NeuralNetwork::load_model(const string& filename) {
-    // This function should be called as follows: "NeuralNetwork nn; nn.load_model(path);"
+void MultiLayerPerceptronNetwork::load_model(const string& filename) {
+    // This function should be called as follows: "MultiLayerPerceptronNetwork mlp; mlp.load_model(path);"
     // Here, we restore a network previously saved with save_model()
     
     ifstream file(filename);
@@ -319,10 +318,18 @@ void NeuralNetwork::load_model(const string& filename) {
     if (loss_function_name == "cross-entropy") loss_function = new CrossEntropy();
 }
 
-const vector<Layer*>& NeuralNetwork::get_layers() const {
+const vector<Layer*>& MultiLayerPerceptronNetwork::get_layers() const {
     return layers;
 }
 
-void NeuralNetwork::set_optimizer(Optimizer* optim) {
+Optimizer* MultiLayerPerceptronNetwork::get_optimizer() const {
+    return optimizer;
+}
+
+NetworkType MultiLayerPerceptronNetwork::get_type() const {
+    return NetworkType::MULTI_LAYER_PERCEPTRON;
+}
+
+void MultiLayerPerceptronNetwork::set_optimizer(Optimizer* optim) {
     optimizer = optim;
 }

@@ -27,6 +27,10 @@ MatrixXd InputLayer::compute_positional_encodings(int seq, int d_model) {
     return P;
 }
 
+void InputLayer::forward(const MatrixXd& input) {
+
+}
+
 void InputLayer::forward(const string& text) {
     cout << "========== InputLayer::forward() ==========" << endl;  // debug
     token_ids = tokenizer->encode(text);
@@ -68,6 +72,10 @@ unique_ptr<Gradients> InputLayer::get_params() {
 
 const MatrixXd& InputLayer::get_output() const {
     return output;
+}
+
+const MatrixXd& InputLayer::get_d_input() const {
+    return d_input;
 }
 
 string InputLayer::get_activation_name() const {

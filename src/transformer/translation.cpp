@@ -113,9 +113,9 @@ void train_test_translation() {
     LossFunction* loss_function = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
-    Transformer* transformer = new Transformer(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer, activation, loss_function, optimizer);
+    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer, activation, loss_function, optimizer);
 
     const string sentence = "Hello";
     cout << "Forwarded sentence: " << sentence << endl;  // debug
-    MatrixXd forward_X_batch = transformer->forward(sentence);
+    MatrixXd forward_X_batch = transformer_network->forward(sentence);
 }

@@ -2,7 +2,8 @@
 #define ADAM_OPTIMIZER_HPP
 
 #include "core/optimizer.hpp"
-#include "mlp/fully_connected_layer.hpp"
+#include "mlp/neural_network.hpp"
+#include "transformer/transformer.hpp"
 
 /**
  * The goal of this struct is to save the parameters of a layer, so that the Adam optimizer can store the first and 
@@ -39,35 +40,36 @@ class AdamOptimizer : public Optimizer {
     public:
         /**
          * Constructs an Adam optimizer with custom hyperparameters.
-         * @param new_nn Pointer to the neural network to optimizer
+         * @param new_network Pointer to the network to optimize
          * @param stepsize Learning rate
          * @param b1 First moment decay rate
          * @param b2 Second moment decay rate
          */
-        AdamOptimizer(NeuralNetwork* new_nn, double stepsize, double b1, double b2);
+        AdamOptimizer(Network* new_network, double stepsize, double b1, double b2);
 
         /**
          * Constructs an Adam optimizer with default hyperparameters
          * stepsize=0.001, b1=0.9, b2=0.999.
-         * @param new_nn Pointer to the neural network to optimizer
+         * @param new_network Pointer to the neural network to optimize
          */
-        AdamOptimizer(NeuralNetwork* new_nn);
+        AdamOptimizer(Network* new_network);
 
         ~AdamOptimizer() = default;
 
         /**
-         * Given a pointer to a layer, pushes a first and second moment vector with corresponding dimensions onto m and v.
-         * Called when adding a layer to the network in NeuralNetwork::add_layer(Layer* layer).
-         * @param layer Pointer to the layer added to the network
+         * Creates first and second moment vectors corresponding to the layers of the network.
          */
-        void update_optimizer(Layer* layer) override;
+        void update_optimizer() override;
+        void update_optimizer_mlp(MultiLayerPerceptronNetwork* mlp);
+        void update_optimizer_transformer(TransformerNetwork* transformer);
 
         /**
-         * Applies Adam parameter update to the layer at the given index.
+         * Applies Adam parameter update to the layers of the network.
          * See Algorithm 1 in https://arxiv.org/pdf/1412.6980.
-         * @param layer_index Index of the layer in the network
          */
-        void update_parameters(int layer_index) const override;
+        void update_parameters() const override;
+        void update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const;
+        void update_parameters_transformer(TransformerNetwork* transformer) const;
 
         /**
          * Returns the type of optimizer (Adam).

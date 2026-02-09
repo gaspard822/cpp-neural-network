@@ -3,6 +3,9 @@
 
 #include "core/optimizer.hpp"
 #include "mlp/fully_connected_layer.hpp"
+#include "mlp/neural_network.hpp"
+#include "transformer/transformer.hpp"
+
 
 /**
  * Implementation of vanilla stochastic gradient descent. Uses a fixed learning rate.
@@ -17,21 +20,22 @@ class VanillaSGDOptimizer : public Optimizer {
          * @param new_nn Pointer to the neural network to optimize
          * @param stepsize Learning rate
          */
-        VanillaSGDOptimizer(NeuralNetwork* new_nn, double stepsize);
+        VanillaSGDOptimizer(Network* new_network, double stepsize);
 
         ~VanillaSGDOptimizer() = default;
         
         /**
          * Implementation of the optimizer interface. In the case of vanilla SGD, doesn't actually do anything.
-         * @param layer Pointer to the layer being added
          */
-        void update_optimizer(Layer* layer) override;
+        void update_optimizer() override;
 
         /**
          * Applies SGD update to the layer at the given index.
          * @param layer_index Index of the layer in the network
          */
-        void update_parameters(int layer_index) const override;
+        void update_parameters() const override;
+        void update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const;
+        void update_parameters_transformer(TransformerNetwork* transformer) const;
 
         /**
          * Returns the type of optimizer (Vanilla SGD).

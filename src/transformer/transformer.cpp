@@ -1,7 +1,7 @@
 #include <iostream>
 #include "transformer/transformer.hpp"
 
-Transformer::Transformer(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
+TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
                          Tokenizer* tokenizer, ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer) :
         num_encoder_layers(num_encoder_layers), num_decoder_layers(num_decoder_layers), seq(seq), d_model(d_model), h(h),
         tokenizer(tokenizer), activation(activation), loss_function(loss_function), optimizer(optimizer) {
@@ -22,7 +22,7 @@ Transformer::Transformer(int num_encoder_layers, int num_decoder_layers, int seq
     linear_layer = new LinearLayer(d_model, tokenizer->get_vocab_size());
 }
 
-Transformer::~Transformer() {
+TransformerNetwork::~TransformerNetwork() {
     for (Encoder* encoder : encoders) {
         delete encoder;
     }
@@ -35,7 +35,7 @@ Transformer::~Transformer() {
     if (optimizer) delete optimizer;
 }
 
-MatrixXd Transformer::forward(const string& text) {
+MatrixXd TransformerNetwork::forward(const string& text) {
     cout << "vocab_size: " << tokenizer->get_vocab_size() << endl << endl;  // debug
     cout << "########## FORWARDING THROUGH THE ENCODER ##########" << endl;  // debug
     encoder_input_layer->forward(text);
@@ -61,7 +61,7 @@ MatrixXd Transformer::forward(const string& text) {
     return linear_layer->get_output();
 }
 
-void Transformer::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
+void TransformerNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
     /*
     // First compute the derivative of the loss with respect to the loss function
     MatrixXd d_loss_buf = loss_function->derivative(y_true, y_pred);
@@ -75,3 +75,20 @@ void Transformer::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
     }
     */
 }
+
+void TransformerNetwork::save_model(const string& path) const {
+    // TODO
+}
+
+void TransformerNetwork::load_model(const string& filename) {
+    // TODO
+}
+
+Optimizer* TransformerNetwork::get_optimizer() const {
+    return optimizer;
+}
+
+NetworkType TransformerNetwork::get_type() const {
+    return NetworkType::TRANSFORMER;
+}
+

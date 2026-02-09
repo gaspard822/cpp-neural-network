@@ -1,8 +1,9 @@
-#ifndef NEURAL_NETWORK_HPP
-#define NEURAL_NETWORK_HPP
+#ifndef MULTI_LAYER_PERCEPTRON_NETWORK_HPP
+#define MULTI_LAYER_PERCEPTRON_NETWORK_HPP
 
 #include <vector>
 #include <Eigen/Dense>
+#include "core/network.hpp"
 #include "core/layer.hpp"
 #include "core/loss_function.hpp"
 #include "core/optimizer.hpp"
@@ -13,33 +14,31 @@ using namespace Eigen;
 /**
  * Represents a feedforward neural network composed of sequential layers.
  */
-class NeuralNetwork {
+class MultiLayerPerceptronNetwork : public Network {
     private:
         vector<Layer*> layers;
-        LossFunction* loss_function;
-        Optimizer* optimizer;
     
     public:
         /**
          * Constructs an empty neural network.
          */
-        NeuralNetwork();
+        MultiLayerPerceptronNetwork();
 
         /**
          * Constructs a network with the given loss function and optimizer.
          * @param loss Pointer to the loss function
          * @param optim Pointer to the optimizer
          */
-        NeuralNetwork(LossFunction* loss, Optimizer* optim);
+        MultiLayerPerceptronNetwork(LossFunction* loss, Optimizer* optim);
 
         /**
          * Constructs a network by selecting loss function and optimizer by name.
          * @param loss_function Name of the loss function ("MeanSquaredError" or "CrossEntropy")
          * @param optimizer Name of the optimizer ("VanillaSGD" or "Adam")
          */
-        NeuralNetwork(const string& loss_function, const string& optimizer);
+        MultiLayerPerceptronNetwork(const string& loss_function, const string& optimizer);
 
-        ~NeuralNetwork();
+        ~MultiLayerPerceptronNetwork();
 
         /**
          * Adds a new layer to the network and updates the optimizer accordingly.
@@ -52,14 +51,14 @@ class NeuralNetwork {
          * @param input Input data matrix (samples x features)
          * @return MatrixXd Output of the final layer
          */
-        MatrixXd forward(const MatrixXd& input);
+        MatrixXd forward(const MatrixXd& input) const;
 
         /**
          * Does a full backward pass using the given target and prediction.
          * @param y_true Ground truth labels
          * @param y_pred Predicted outputs from the forward pass
          */
-        void backward(const MatrixXd& y_true, const MatrixXd& y_pred);
+        void backward(const MatrixXd& y_true, const MatrixXd& y_pred) const;
 
         /**
          * Trains the network using the given training data and optional validation data.
@@ -87,16 +86,22 @@ class NeuralNetwork {
          * Saves the model's architecture and parameters to a .txt file.
          * @param path Filesystem path to save the model
          */
-        void save_model(const string& path) const;
+        void save_model(const string& path) const override;
 
         /**
          * Loads a model's architecture and parameters from a file.
          * @param path Filesystem path to the saved model
          */
-        void load_model(const string& path);
+        void load_model(const string& path) override;
 
-        // Straightforward getter        
+        // Straightforward getter
         const vector<Layer*>& get_layers() const;
+
+        // Straightforward getter
+        Optimizer* get_optimizer() const override;
+
+        // Straightforward getter
+        NetworkType get_type() const override;
 
         // Straightforward setter
         void set_optimizer(Optimizer* optim);

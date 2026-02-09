@@ -1,6 +1,7 @@
 #ifndef TRANSFORMER_HPP
 #define TRANSFORMER_HPP
 
+#include "core/network.hpp"
 #include "transformer/input_layer.hpp"
 #include "transformer/encoder.hpp"
 #include "transformer/decoder.hpp"
@@ -8,7 +9,7 @@
 #include "core/loss_function.hpp"
 #include "core/optimizer.hpp"
 
-class Transformer {
+class TransformerNetwork : public Network {
     private:
         int num_encoder_layers, num_decoder_layers;
         int seq, d_model, h;
@@ -29,13 +30,32 @@ class Transformer {
         LinearLayer* linear_layer;
         
     public:
-        Transformer(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
+        TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
                     Tokenizer* tokenizer, ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer);
-        ~Transformer();
+
+        ~TransformerNetwork();
 
         MatrixXd forward(const string& text);
         void backward(const MatrixXd& y_true, const MatrixXd& y_pred);
         void train();
+
+        /**
+         * Saves the model's architecture and parameters to a .txt file.
+         * @param path Filesystem path to save the model
+         */
+        void save_model(const string& path) const override;
+
+        /**
+         * Loads a model's architecture and parameters from a file.
+         * @param path Filesystem path to the saved model
+         */
+        void load_model(const string& path) override;
+
+        // Straightforward getter
+        Optimizer* get_optimizer() const override;
+
+        // Straightforward getter
+        NetworkType get_type() const override;
         
 };
 

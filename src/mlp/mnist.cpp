@@ -192,26 +192,27 @@ void train_test_mnist() {
     cout << "Time for splitting the data: " << chrono::duration_cast<chrono::milliseconds>(split_time_end - split_time_start).count() << "ms" << endl;
     
     // Create a neural network using cross-entropy as a loss function and adam as an optimizer
-    NeuralNetwork nn("CrossEntropy", "Adam");
+    MultiLayerPerceptronNetwork mlp("CrossEntropy", "Adam");
 
     // Create layers and add them to the network
     FullyConnectedLayer* layer_1 = new FullyConnectedLayer(new Relu(), 784, 512);
-    nn.add_layer(layer_1);
+    mlp.add_layer(layer_1);
     FullyConnectedLayer* layer_2 = new FullyConnectedLayer(new Relu(), 512, 256);
-    nn.add_layer(layer_2);
+    mlp.add_layer(layer_2);
     FullyConnectedLayer* layer_3 = new FullyConnectedLayer(new Relu(), 256, 128);
-    nn.add_layer(layer_3);
+    mlp.add_layer(layer_3);
     FullyConnectedLayer* layer_4 = new FullyConnectedLayer(new Identity(), 128, 10);
-    nn.add_layer(layer_4);
+    mlp.add_layer(layer_4);
+    mlp.get_optimizer()->update_optimizer();
     
     // Train
-    nn.train(X_train, Y_train, 30, 1024, X_val, Y_val, false, false);
+    mlp.train(X_train, Y_train, 30, 1024, X_val, Y_val, false, false);
 
     // Saving the model and loading it again to test the save_model() and load_model() functions
     // Save the trained model
-    nn.save_model("../models/testing_stuff.txt");
+    mlp.save_model("../models/testing_stuff.txt");
     // Create a new network and load the architecture and parameters of the previously trained network
-    NeuralNetwork nn_test;
+    MultiLayerPerceptronNetwork nn_test;
     nn_test.load_model("../models/testing_stuff.txt");
     // Infer the testing set
     MatrixXd inference = nn_test.infer(X_test);
@@ -238,10 +239,10 @@ void train_test_mnist() {
 void infer_mnist() {
     int num_samples = 28000;
     MatrixXd mnist_data = get_mnist_testing_data(0, num_samples);
-    NeuralNetwork nn;
-    nn.load_model("../models/testing_stuff.txt");
+    MultiLayerPerceptronNetwork mlp;
+    mlp.load_model("../models/testing_stuff.txt");
     
-    MatrixXd inference = nn.infer(mnist_data);
+    MatrixXd inference = mlp.infer(mnist_data);
     cout << "(" << inference.rows() << "x" << inference.cols() << ")" << endl;
     VectorXd prediction(num_samples);
     ofstream file("../models/predictions.csv");

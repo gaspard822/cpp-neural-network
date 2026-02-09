@@ -3,7 +3,7 @@
 
 #include "core/layer.hpp"
 
-class NeuralNetwork;
+class Network;
 
 enum class OptimizerType {
     ADAM,
@@ -15,36 +15,33 @@ enum class OptimizerType {
  */
 class Optimizer {
     protected:
-        // Pointer to the neural network that this optimizer updates
-        NeuralNetwork* nn;
+        // Pointer to the network that this optimizer updates
+        Network* network;
 
     public:
         /**
          * Constructs an optimizer for the given neural network.
-         * @param new_nn Pointer to the neural network to be optimized
+         * @param new_network Pointer to the network to be optimized
          */
-        Optimizer(NeuralNetwork* new_nn);
+        Optimizer(Network* new_network);
 
         virtual ~Optimizer() = default;
 
         /**
-         * Prepares internal optimizer state for a new layer.
-         * Called when adding a layer to the network in NeuralNetwork::add_layer(Layer* layer)
-         * @param layer Pointer to the layer being added
+         * Prepares internal optimizer state for a new network.
          */
-        virtual void update_optimizer(Layer* layer) = 0;
+        virtual void update_optimizer() = 0;
 
         /**
-         * Applies the optimizer's update rule to the parameters of the layer at the given index.
-         * @param layer_index Index of the layer to update
+         * Applies the optimizer's update rule to the parameters of the network.
          */
-        virtual void update_parameters(int layer_index) const = 0;
+        virtual void update_parameters() const = 0;
 
         /**
          * Simple setter to set or replace the neural network associated with the optimizer.
          * @param new_nn Pointer to the new neural network
          */
-        void set_network(NeuralNetwork* new_nn);
+        void set_network(Network* new_network);
 
         /**
          * Returns the type of the optimizer.

@@ -17,6 +17,7 @@ set(SOURCES
     src/core/cross_entropy_loss.cpp
     src/core/identity.cpp
     src/core/mean_squared_error_loss.cpp
+    src/core/network.cpp
     src/core/optimizer.cpp
     src/core/relu.cpp
     src/core/sigmoid.cpp

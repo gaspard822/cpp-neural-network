@@ -4,7 +4,7 @@
 #include "core/layer.hpp"
 #include "transformer/tokenizer.hpp"
 
-class InputLayer {
+class InputLayer: Layer {
     private:
         int seq, d_model, vocab_size;
         Tokenizer* tokenizer;
@@ -19,18 +19,20 @@ class InputLayer {
 
         MatrixXd compute_positional_encodings(int seq, int d_model);
 
+        void forward(const MatrixXd& input) override;
         void forward(const string& text);
 
-        void backward(const MatrixXd& d_output);
+        void backward(const MatrixXd& d_output) override;
 
-        MatrixXd infer(const MatrixXd& layer_input) const;
+        MatrixXd infer(const MatrixXd& layer_input) const override;
 
-        unique_ptr<Gradients> get_gradients();
-        unique_ptr<Gradients> get_params();
-        const MatrixXd& get_output() const;
+        unique_ptr<Gradients> get_gradients() override;
+        unique_ptr<Gradients> get_params() override;
+        const MatrixXd& get_output() const override;
+        const MatrixXd& get_d_input() const override;
 
-        string get_activation_name() const;
-        LayerType get_type() const;
+        string get_activation_name() const override;
+        LayerType get_type() const override;
 };
 
 #endif

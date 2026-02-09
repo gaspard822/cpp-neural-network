@@ -1,7 +1,7 @@
 #include "core/optimizer.hpp"
 
-Optimizer::Optimizer(NeuralNetwork* new_nn) : nn(new_nn) {}
+Optimizer::Optimizer(Network* new_network) : network(new_network) {}
 
-void Optimizer::set_network(NeuralNetwork* new_nn) {
-    nn = new_nn;
+void Optimizer::set_network(Network* new_network) {
+    network = new_network;
 }
