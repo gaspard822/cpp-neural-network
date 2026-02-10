@@ -2,9 +2,9 @@
 #include "transformer/transformer.hpp"
 
 TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
-                                       ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer) :
+                                       ActivationFunction* activation, CrossEntropy* cross_entropy_loss, Optimizer* optimizer) :
         num_encoder_layers(num_encoder_layers), num_decoder_layers(num_decoder_layers), seq(seq), d_model(d_model), h(h),
-        vocab_size(vocab_size), activation(activation), loss_function(loss_function), optimizer(optimizer) {
+        vocab_size(vocab_size), activation(activation), cross_entropy_loss(cross_entropy_loss), optimizer(optimizer) {
     
     d_k = d_v = d_model / h;
     d_ff = 4 * d_model;
@@ -15,7 +15,7 @@ TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_l
     }
 
     decoder_input_layer = new InputLayer(seq, d_model, vocab_size);
-    for (int i = 0; i < num_encoder_layers; i++) {
+    for (int i = 0; i < num_decoder_layers; i++) {
         decoders.push_back(new Decoder(seq, d_model, h, d_k, d_v, d_ff, activation));
     }
 
@@ -30,7 +30,7 @@ TransformerNetwork::~TransformerNetwork() {
         delete decoder;
     }
     if (activation) delete activation;
-    if (loss_function) delete loss_function;
+    if (cross_entropy_loss) delete cross_entropy_loss;
     if (optimizer) delete optimizer;
 }
 
@@ -46,9 +46,9 @@ MatrixXd TransformerNetwork::forward(const vector<int>& encoder_token_ids, const
     }
 
     cout << "########## FORWARDING THROUGH THE DECODERS ##########" << endl;  // debug
+    decoder_input_layer->forward(decoder_token_ids);
     const MatrixXd* decoder_output = &decoder_input_layer->get_output();
     // Get the decoder's embeddings corresponding to the given text
-    decoder_input_layer->forward(decoder_token_ids);
     // Forward that embedding into the encoders
     for (Decoder* decoder: decoders) {
         decoder->forward(*encoder_output, *decoder_output);
@@ -60,15 +60,17 @@ MatrixXd TransformerNetwork::forward(const vector<int>& encoder_token_ids, const
     return linear_layer->get_output();
 }
 
-void TransformerNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) {
-    MatrixXd d_loss = loss_function->derivative(y_true, y_pred);
+void TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_pred) {
+    MatrixXd d_loss = cross_entropy_loss->derivative(y_true, y_pred);
+    cout << "d_loss (" << d_loss.rows() << "," << d_loss.cols() << "):" << endl << d_loss << endl << endl; // debug
     const MatrixXd* decoder_d_input = &d_loss;
     cout << "########## BACKWARDING THROUGH THE LINEAR LAYER ##########" << endl;  // debug
     linear_layer->backward(*decoder_d_input);
     decoder_d_input = &linear_layer->get_d_input();
 
     cout << "########## BACKWARDING THROUGH THE DECODERS ##########" << endl;  // debug
-    MatrixXd encoder_d_input_buf = MatrixXd::Zero(seq, d_model);
+    int num_encoder_tokens = encoders[encoders.size()-1]->get_output().rows();
+    MatrixXd encoder_d_input_buf = MatrixXd::Zero(num_encoder_tokens, d_model);
     for (int i = num_decoder_layers - 1; i >= 0; i--) {
         decoders[i]->backward(*decoder_d_input);
         decoder_d_input = &decoders[i]->get_d_input();
@@ -80,7 +82,7 @@ void TransformerNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred
     const MatrixXd* encoder_d_input = &encoder_d_input_buf;
     for (int i = num_encoder_layers - 1; i >= 0; i--) {
         encoders[i]->backward(*encoder_d_input);
-        encoder_d_input = &decoders[i]->get_d_input();
+        encoder_d_input = &encoders[i]->get_d_input();
     }
     encoder_input_layer->backward(*encoder_d_input);
 

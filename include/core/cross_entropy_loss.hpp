@@ -16,6 +16,8 @@ class CrossEntropy : public LossFunction {
          */
         double compute(const MatrixXd& y_true, const MatrixXd& y_pred) const override;
 
+        double compute(const vector<int>& y_true, const MatrixXd& y_pred) const;
+
         /**
          * Computes the gradient of the cross-entropy loss with respect to the predictions.
          * @param y_true Matrix of true labels
@@ -23,6 +25,8 @@ class CrossEntropy : public LossFunction {
          * @return MatrixXd Gradient of the loss with respect to y_pred
          */
         MatrixXd derivative(const MatrixXd& y_true, const MatrixXd& y_pred) const override;
+
+        MatrixXd derivative(const vector<int>& y_true, const MatrixXd& y_pred) const;
 
         /**
          * Returns the name of the loss function ("cross-entropy").

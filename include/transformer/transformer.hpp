@@ -6,7 +6,7 @@
 #include "transformer/encoder.hpp"
 #include "transformer/decoder.hpp"
 #include "transformer/linear_layer.hpp"
-#include "core/loss_function.hpp"
+#include "core/cross_entropy_loss.hpp"
 #include "core/optimizer.hpp"
 
 class TransformerNetwork : public Network {
@@ -18,7 +18,7 @@ class TransformerNetwork : public Network {
         int vocab_size;
 
         ActivationFunction* activation;
-        LossFunction* loss_function;
+        CrossEntropy* cross_entropy_loss;
         Optimizer* optimizer;
 
         InputLayer* encoder_input_layer;
@@ -31,12 +31,12 @@ class TransformerNetwork : public Network {
         
     public:
         TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
-                    ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer);
+                    ActivationFunction* activation, CrossEntropy* cross_entropy_loss, Optimizer* optimizer);
 
         ~TransformerNetwork();
 
         MatrixXd forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
-        void backward(const MatrixXd& y_true, const MatrixXd& y_pred);
+        void backward(const vector<int>& y_true, const MatrixXd& y_pred);
         void train();
 
         /**

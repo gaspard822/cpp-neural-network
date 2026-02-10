@@ -111,10 +111,10 @@ void train_test_translation() {
     int h = 2;
     Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
     ActivationFunction* activation = new Relu();
-    LossFunction* loss_function = new CrossEntropy();
+    CrossEntropy* cross_entropy_loss = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
-    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, loss_function, optimizer);
+    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
 
     const string encoder_sentence = "Hello";
     const string decoder_sentence = "Bonjour";
@@ -122,5 +122,9 @@ void train_test_translation() {
     cout << "Decoder sentence: " << decoder_sentence << endl;  // debug
     vector<int> encoder_token_ids = tokenizer->encode(encoder_sentence);
     vector<int> decoder_token_ids = tokenizer->encode(decoder_sentence);
-    MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_token_ids);
+    vector<int> decoder_input_token_ids(decoder_token_ids.begin(), decoder_token_ids.end() - 2);
+    vector<int> decoder_target_token_ids(decoder_token_ids.begin() + 1, decoder_token_ids.end());
+    MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_input_token_ids);
+    cout << "\n\n\n\n\n ======================================= \n\n\n\n\n" << endl;  // debug
+    transformer_network->backward(decoder_target_token_ids, forward_X_batch);
 }

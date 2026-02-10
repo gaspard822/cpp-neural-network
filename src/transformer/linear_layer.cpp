@@ -23,6 +23,8 @@ void LinearLayer::forward(const MatrixXd& input) {
 }
 
 void LinearLayer::backward(const MatrixXd& d_output) {
+    cout << "========== LinearLayer::backward() ==========" << endl;  // debug
+    cout << "X (" << X.rows() << "," << X.cols() << "):" << endl << X << endl << endl; // debug
     d_W = X.transpose() * d_output;
     d_b = d_output.colwise().sum();
     d_input = d_output * W.transpose();
@@ -53,5 +55,5 @@ string LinearLayer::get_activation_name() const {
 }
 
 LayerType LinearLayer::get_type() const {
-    return LayerType::FEED_FORWARD;
+    return LayerType::LINEAR_LAYER;
 }
