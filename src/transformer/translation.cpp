@@ -4,6 +4,7 @@
 #include "core/relu.hpp"
 #include "core/cross_entropy_loss.hpp"
 #include "core/adam_optimizer.hpp"
+#include "transformer/tokenizer.hpp"
 
 /*
 static inline pair<string, string> parse_csv_line_two_columns(const string& line) {
@@ -113,11 +114,13 @@ void train_test_translation() {
     LossFunction* loss_function = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
-    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer, activation, loss_function, optimizer);
+    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, loss_function, optimizer);
 
     const string encoder_sentence = "Hello";
     const string decoder_sentence = "Bonjour";
     cout << "Encoder sentence: " << encoder_sentence << endl;  // debug
     cout << "Decoder sentence: " << decoder_sentence << endl;  // debug
-    MatrixXd forward_X_batch = transformer_network->forward(encoder_sentence, decoder_sentence);
+    vector<int> encoder_token_ids = tokenizer->encode(encoder_sentence);
+    vector<int> decoder_token_ids = tokenizer->encode(decoder_sentence);
+    MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_token_ids);
 }

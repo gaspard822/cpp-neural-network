@@ -2,9 +2,9 @@
 #include <fstream>
 #include <array>
 #include "transformer/input_layer.hpp"
+#include "transformer/tokenizer.hpp"
 
-InputLayer::InputLayer(int seq, int d_model, Tokenizer* tokenizer) : seq(seq), d_model(d_model), tokenizer(tokenizer) {
-    vocab_size = tokenizer->get_vocab_size();
+InputLayer::InputLayer(int seq, int d_model, int vocab_size) : seq(seq), d_model(d_model), vocab_size(vocab_size) {
     // Initialize the embeddings matrix
     double limit = sqrt(6.0 / (vocab_size + d_model));
     embeddings = MatrixXd::Random(vocab_size, d_model) * limit;
@@ -31,9 +31,8 @@ void InputLayer::forward(const MatrixXd& input) {
 
 }
 
-void InputLayer::forward(const string& text) {
+void InputLayer::forward(const vector<int>& token_ids) {
     cout << "========== InputLayer::forward() ==========" << endl;  // debug
-    token_ids = tokenizer->encode(text);
     cout << "token_ids:" << endl;
     for (auto it = token_ids.begin(); it != token_ids.end(); it++) {  // debug
         cout << *it << ", ";

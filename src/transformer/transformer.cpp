@@ -1,25 +1,25 @@
 #include <iostream>
 #include "transformer/transformer.hpp"
 
-TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
-                         Tokenizer* tokenizer, ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer) :
+TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
+                                       ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer) :
         num_encoder_layers(num_encoder_layers), num_decoder_layers(num_decoder_layers), seq(seq), d_model(d_model), h(h),
-        tokenizer(tokenizer), activation(activation), loss_function(loss_function), optimizer(optimizer) {
+        vocab_size(vocab_size), activation(activation), loss_function(loss_function), optimizer(optimizer) {
     
     d_k = d_v = d_model / h;
     d_ff = 4 * d_model;
 
-    encoder_input_layer = new InputLayer(seq, d_model, tokenizer);
+    encoder_input_layer = new InputLayer(seq, d_model, vocab_size);
     for (int i = 0; i < num_encoder_layers; i++) {
         encoders.push_back(new Encoder(seq, d_model, h, d_k, d_v, d_ff, activation));
     }
 
-    decoder_input_layer = new InputLayer(seq, d_model, tokenizer);
+    decoder_input_layer = new InputLayer(seq, d_model, vocab_size);
     for (int i = 0; i < num_encoder_layers; i++) {
         decoders.push_back(new Decoder(seq, d_model, h, d_k, d_v, d_ff, activation));
     }
 
-    linear_layer = new LinearLayer(d_model, tokenizer->get_vocab_size());
+    linear_layer = new LinearLayer(d_model, vocab_size);
 }
 
 TransformerNetwork::~TransformerNetwork() {
@@ -29,16 +29,15 @@ TransformerNetwork::~TransformerNetwork() {
     for (Decoder* decoder : decoders) {
         delete decoder;
     }
-    if (tokenizer) delete tokenizer;
     if (activation) delete activation;
     if (loss_function) delete loss_function;
     if (optimizer) delete optimizer;
 }
 
-MatrixXd TransformerNetwork::forward(const string& encoder_text, const string& decoder_text) {
-    cout << "vocab_size: " << tokenizer->get_vocab_size() << endl << endl;  // debug
+MatrixXd TransformerNetwork::forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids) {
+    cout << "vocab_size: " << vocab_size << endl << endl;  // debug
     cout << "########## FORWARDING THROUGH THE ENCODERS ##########" << endl;  // debug
-    encoder_input_layer->forward(encoder_text);
+    encoder_input_layer->forward(encoder_token_ids);
     const MatrixXd* encoder_output = &encoder_input_layer->get_output();
     // Forward that embedding into the encoders
     for (Encoder* encoder: encoders) {
@@ -49,7 +48,7 @@ MatrixXd TransformerNetwork::forward(const string& encoder_text, const string& d
     cout << "########## FORWARDING THROUGH THE DECODERS ##########" << endl;  // debug
     const MatrixXd* decoder_output = &decoder_input_layer->get_output();
     // Get the decoder's embeddings corresponding to the given text
-    decoder_input_layer->forward(decoder_text);
+    decoder_input_layer->forward(decoder_token_ids);
     // Forward that embedding into the encoders
     for (Decoder* decoder: decoders) {
         decoder->forward(*encoder_output, *decoder_output);

@@ -15,8 +15,8 @@ class TransformerNetwork : public Network {
         int seq, d_model, h;
         int d_k, d_v;  // We simply set d_k and d_v to d_model / h
         int d_ff;  // We simply set d_ff to 4 * d_model
+        int vocab_size;
 
-        Tokenizer* tokenizer;
         ActivationFunction* activation;
         LossFunction* loss_function;
         Optimizer* optimizer;
@@ -30,12 +30,12 @@ class TransformerNetwork : public Network {
         LinearLayer* linear_layer;
         
     public:
-        TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h,
-                    Tokenizer* tokenizer, ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer);
+        TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
+                    ActivationFunction* activation, LossFunction* loss_function, Optimizer* optimizer);
 
         ~TransformerNetwork();
 
-        MatrixXd forward(const string& encoder_text, const string& decoder_text);
+        MatrixXd forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
         void backward(const MatrixXd& y_true, const MatrixXd& y_pred);
         void train();
 

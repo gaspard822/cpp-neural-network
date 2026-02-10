@@ -2,12 +2,10 @@
 #define INPUT_LAYER_HPP
 
 #include "core/layer.hpp"
-#include "transformer/tokenizer.hpp"
 
 class InputLayer: Layer {
     private:
         int seq, d_model, vocab_size;
-        Tokenizer* tokenizer;
         MatrixXd embeddings, d_embeddings;
         MatrixXd positional_encodings;
         
@@ -15,12 +13,12 @@ class InputLayer: Layer {
         MatrixXd output;
 
     public:
-        InputLayer(int seq, int d_model, Tokenizer* tokenizer);
+        InputLayer(int seq, int d_model, int vocab_size);
 
         MatrixXd compute_positional_encodings(int seq, int d_model);
 
         void forward(const MatrixXd& input) override;
-        void forward(const string& text);
+        void forward(const vector<int>& token_ids);
 
         void backward(const MatrixXd& d_output) override;
 
