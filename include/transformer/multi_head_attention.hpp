@@ -34,6 +34,7 @@ class MultiHeadAttention : public Layer {
         unique_ptr<Gradients> get_params() override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
+        const MatrixXd& get_d_encoder_output() const;
 
         string get_activation_name() const override;
         LayerType get_type() const override;

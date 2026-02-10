@@ -115,7 +115,9 @@ void train_test_translation() {
 
     TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer, activation, loss_function, optimizer);
 
-    const string sentence = "Hello";
-    cout << "Forwarded sentence: " << sentence << endl;  // debug
-    MatrixXd forward_X_batch = transformer_network->forward(sentence);
+    const string encoder_sentence = "Hello";
+    const string decoder_sentence = "Bonjour";
+    cout << "Encoder sentence: " << encoder_sentence << endl;  // debug
+    cout << "Decoder sentence: " << decoder_sentence << endl;  // debug
+    MatrixXd forward_X_batch = transformer_network->forward(encoder_sentence, decoder_sentence);
 }

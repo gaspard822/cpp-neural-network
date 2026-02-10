@@ -27,6 +27,20 @@ void Encoder::forward(const MatrixXd& input) {
     output = *layer_output;
 }
 
+void Encoder::backward(const MatrixXd& d_output) {
+    const MatrixXd* layer_d_input = &d_output;
+    int num_layers = layers.size();
+    for (int i = num_layers - 1; i >= 0; i--) {
+        layers[i]->backward(*layer_d_input);
+        layer_d_input = &layers[i]->get_d_input();
+    }
+    d_input = *layer_d_input;
+}
+
 const MatrixXd& Encoder::get_output() const {
     return output;
+}
+
+const MatrixXd& Encoder::get_d_input() const {
+    return d_input;
 }

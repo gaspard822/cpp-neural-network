@@ -29,6 +29,25 @@ void Decoder::forward(const MatrixXd& encoder_input, const MatrixXd& decoder_inp
     output = *layer_output;
 }
 
+void Decoder::backward(const MatrixXd& d_output) {
+    const MatrixXd* layer_d_input = &d_output;
+    int num_layers = layers.size();
+    for (int i = num_layers - 1; i >= 0; i--) {
+        layers[i]->backward(*layer_d_input);
+        layer_d_input = &layers[i]->get_d_input();
+    }
+    d_input = *layer_d_input;
+    d_encoder_input = mha_cross->get_d_encoder_output();
+}
+
 const MatrixXd& Decoder::get_output() const {
     return output;
+}
+
+const MatrixXd& Decoder::get_d_input() const {
+    return d_input;
+}
+
+const MatrixXd& Decoder::get_d_encoder_input() const {
+    return d_encoder_input;
 }

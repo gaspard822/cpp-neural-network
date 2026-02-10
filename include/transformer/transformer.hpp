@@ -35,7 +35,7 @@ class TransformerNetwork : public Network {
 
         ~TransformerNetwork();
 
-        MatrixXd forward(const string& text);
+        MatrixXd forward(const string& encoder_text, const string& decoder_text);
         void backward(const MatrixXd& y_true, const MatrixXd& y_pred);
         void train();
 

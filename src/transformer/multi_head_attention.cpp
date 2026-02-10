@@ -137,6 +137,12 @@ const MatrixXd& MultiHeadAttention::get_d_input() const {
     return d_input;
 }
 
+const MatrixXd& MultiHeadAttention::get_d_encoder_output() const {
+    if (!is_cross_attention()) throw runtime_error("get_d_encoder_output() can only be called for cross-attention");
+    return d_encoder_output;
+}
+
+
 string MultiHeadAttention::get_activation_name() const {
     return "";
 }
