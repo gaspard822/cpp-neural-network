@@ -65,7 +65,6 @@ MatrixXd CrossEntropy::derivative(const vector<int>& y_true, const MatrixXd& y_p
 
     for (int t = 0; t < num_true_tokens; t++) {
         RowVectorXd row = y_pred.row(t);
-
         double max = row.maxCoeff();
         RowVectorXd exp_shifted = (row.array() - max).exp();
         double sum_exp = exp_shifted.sum();

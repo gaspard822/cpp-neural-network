@@ -17,6 +17,7 @@ class MultiHeadAttention : public Layer {
         vector<MatrixXd> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         vector<MatrixXd> Q, K, V;
         vector<MatrixXd> softmaxJ, head;
+        vector<TrainableParameter> params;
         int seq, d_model, h, d_k, d_v;
 
     public:
@@ -30,8 +31,7 @@ class MultiHeadAttention : public Layer {
 
         void set_encoder_output(const MatrixXd& enc_out);
 
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
         const MatrixXd& get_d_encoder_output() const;

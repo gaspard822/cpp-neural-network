@@ -40,6 +40,9 @@ class Network {
         virtual void load_model(const string& path) = 0;
 
         // Straightforward getter
+        virtual const vector<Layer*>& get_layers() const = 0;
+
+        // Straightforward getter
         virtual Optimizer* get_optimizer() const = 0;
 
         /**

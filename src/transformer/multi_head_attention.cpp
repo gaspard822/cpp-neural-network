@@ -4,6 +4,7 @@
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
         seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), mode(mode) {
     
+    params = {};
     // Glorot initialization for the parameter matrices
     WQ.resize(h);
     WK.resize(h);
@@ -16,10 +17,23 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
     double limit_d_k = sqrt(6.0 / (d_model + d_k));
     double limit_d_v = sqrt(6.0 / (d_model + d_v));
     for (int i = 0; i < h; i++) {
+        // Initialize weights
         WQ[i] = MatrixXd::Random(d_model, d_k) * limit_d_k;
         WK[i] = MatrixXd::Random(d_model, d_k) * limit_d_k;
         WV[i] = MatrixXd::Random(d_model, d_v) * limit_d_v;
         WO[i] = MatrixXd::Random(d_v, d_model) * limit_d_v;
+
+        // Initialize gradients
+        d_WQ[i] = MatrixXd(d_model, d_k);
+        d_WK[i] = MatrixXd(d_model, d_k);
+        d_WV[i] = MatrixXd(d_model, d_v);
+        d_WO[i] = MatrixXd(d_v, d_model);
+        
+        // Add parameters matrices to params
+        params.push_back(TrainableParameter(WQ[i], d_WQ[i]));
+        params.push_back(TrainableParameter(WK[i], d_WK[i]));
+        params.push_back(TrainableParameter(WV[i], d_WV[i]));
+        params.push_back(TrainableParameter(WO[i], d_WO[i]));
     }
 
     Q.resize(h);
@@ -126,12 +140,8 @@ void MultiHeadAttention::set_encoder_output(const MatrixXd& enc_out) {
     encoder_output = enc_out;
 }
 
-unique_ptr<Gradients> MultiHeadAttention::get_gradients() {
-    return nullptr;
-}
-
-unique_ptr<Gradients> MultiHeadAttention::get_params() {
-    return nullptr;
+const vector<TrainableParameter>& MultiHeadAttention::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& MultiHeadAttention::get_output() const {

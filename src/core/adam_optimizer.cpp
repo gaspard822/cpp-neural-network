@@ -4,10 +4,6 @@
 #include "mlp/neural_network.hpp"
 #include "transformer/transformer.hpp"
 
-// For some reason, need to write "std::move" instead of "move" to avoid warnings
-OwnedFCGradients::OwnedFCGradients(MatrixXd dw, VectorXd dbi, RowVectorXd dg, RowVectorXd dbe):
-    d_weights(std::move(dw)), d_bias(std::move(dbi)), d_gamma(std::move(dg)), d_beta(std::move(dbe)) {}
-
 AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, double b2) :
     Optimizer(new_network), stepsize(stepsize), b1(b1), b2(b2) {
     
@@ -20,203 +16,55 @@ AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, d
 
 AdamOptimizer::AdamOptimizer(Network* new_network) : AdamOptimizer(new_network, 0.001, 0.9, 0.999) {}
 
-/*
-void AdamOptimizer::update_optimizer(Layer* layer) {
-    if (layer->get_type() == LayerType::FULLY_CONNECTED_LAYER) {
-        unique_ptr<Gradients> gradients = layer->get_gradients();
-        FCGradients* grads = gradients.get()->as_fc_gradients();
-        if (!grads) throw runtime_error("The gradients of the layer are not stored as FCGradients");
+AdamState& AdamOptimizer::get_or_create_state(double* key, Index rows, Index cols) const {
+    // operator[] inserts default AdamState if missing
+    AdamState& st = states[key];
 
-        // We create OwnedFCGradients that contain first and second moment vectors (initialized to 0) according to the
-        // dimensions of the parameters in the corresponding layer, and we add them to m and v
-        auto m_copy = make_unique<OwnedFCGradients>(
-            MatrixXd::Zero(grads->d_weights.rows(), grads->d_weights.cols()),
-            VectorXd::Zero(grads->d_bias.size()),
-            RowVectorXd::Zero(grads->d_gamma.size()),
-            RowVectorXd::Zero(grads->d_beta.size())
-        );
-        auto v_copy = make_unique<OwnedFCGradients>(
-            MatrixXd::Zero(grads->d_weights.rows(), grads->d_weights.cols()),
-            VectorXd::Zero(grads->d_bias.size()),
-            RowVectorXd::Zero(grads->d_gamma.size()),
-            RowVectorXd::Zero(grads->d_beta.size())
-        );
-        m.push_back(std::move(m_copy));
-        v.push_back(std::move(v_copy));
-    } else {
-        throw runtime_error("The type of layer was not recognized");
+    // Eigen default constructs as 0x0 matrices, ensure correct shape
+    if (st.m.rows() != rows || st.m.cols() != cols) {
+        st.m = MatrixXd::Zero(rows, cols);
     }
-}
-
-void AdamOptimizer::update_parameters(int layer_index) const {
-    // Get the gradients and the parameters of the layer
-    unique_ptr<Gradients> gradients = nn->get_layers()[layer_index]->get_gradients();
-    unique_ptr<Gradients> parameters = nn->get_layers()[layer_index]->get_params();
-
-    // If we're looking at the last layer, increment t
-    if (layer_index == nn->get_layers().size() - 1) {
-        t += 1;
+    if (st.v.rows() != rows || st.v.cols() != cols) {
+        st.v = MatrixXd::Zero(rows, cols);
     }
-
-    if (nn->get_layers()[layer_index]->get_type() == LayerType::FULLY_CONNECTED_LAYER) {
-        // Get the gradients and the parameters of the fully connected layer
-        FCGradients* grads = gradients.get()->as_fc_gradients();
-        FCGradients* params = parameters.get()->as_fc_gradients();
-        if (!grads || !params) throw runtime_error("The gradients or parameters of layer " + to_string(layer_index) +
-            " are not stored as FCGradients");
-        
-        // Update biased first moment estimate
-        OwnedFCGradients* m_fc = m[layer_index].get()->as_owned_fc_gradients();
-        if (!m_fc) throw runtime_error("m[" + to_string(layer_index) + "] is not stored as OwnedFCGradients");
-        m_fc->d_weights = b1 * m_fc->d_weights + (1-b1) * grads->d_weights;
-        m_fc->d_bias = b1 * m_fc->d_bias + (1-b1) * grads->d_bias;
-        m_fc->d_gamma = b1 * m_fc->d_gamma + (1-b1) * grads->d_gamma;
-        m_fc->d_beta = b1 * m_fc->d_beta + (1-b1) * grads->d_beta;
-        
-        // Update biased second raw moment estimate
-        OwnedFCGradients* v_fc = v[layer_index].get()->as_owned_fc_gradients();
-        if (!v_fc) throw runtime_error("v[" + to_string(layer_index) + "] is not stored as OwnedFCGradients");
-        v_fc->d_weights = b2 * v_fc->d_weights + (1-b2) * grads->d_weights.array().square().matrix();
-        v_fc->d_bias = b2 * v_fc->d_bias + (1-b2) * grads->d_bias.array().square().matrix();
-        v_fc->d_gamma = b2 * v_fc->d_gamma + (1-b2) * grads->d_gamma.array().square().matrix();
-        v_fc->d_beta = b2 * v_fc->d_beta + (1-b2) * grads->d_beta.array().square().matrix();
-
-        // Compute bias-corrected first and second moment estimates and update the parameters
-        double bc1 = 1.0 - pow(b1, t);
-        double bc2 = 1.0 - pow(b2, t);
-        params->d_weights = params->d_weights -
-            stepsize * ((m_fc->d_weights.array() / bc1) /((v_fc->d_weights.array() / bc2).sqrt() + epsilon)).matrix();
-        params->d_bias = params->d_bias -
-            stepsize * ((m_fc->d_bias.array() / bc1) / ((v_fc->d_bias.array() / bc2).sqrt() + epsilon)).matrix();
-        params->d_gamma = params->d_gamma -
-            stepsize * ((m_fc->d_gamma.array() / bc1) / ((v_fc->d_gamma.array() / bc2).sqrt() + epsilon)).matrix();
-        params->d_beta = params->d_beta -
-            stepsize * ((m_fc->d_beta.array() / bc1) / ((v_fc->d_beta.array() / bc2).sqrt() + epsilon)).matrix();
-    } else {
-        throw runtime_error("The type of layer " + to_string(layer_index) + " was not recognized");
-    }
-}
-*/
-
-OptimizerType AdamOptimizer::get_type() const {
-    return OptimizerType::ADAM;
-}
-
-
-void AdamOptimizer::update_optimizer_mlp(MultiLayerPerceptronNetwork* mlp) {
-    vector<Layer*> layers = mlp->get_layers();
-    for (Layer* layer: layers) {
-        if (layer->get_type() == LayerType::FULLY_CONNECTED_LAYER) {
-            unique_ptr<Gradients> gradients = layer->get_gradients();
-            FCGradients* grads = gradients.get()->as_fc_gradients();
-            if (!grads) throw runtime_error("The gradients of the layer are not stored as FCGradients");
-
-            // We create OwnedFCGradients that contain first and second moment vectors (initialized to 0) according to the
-            // dimensions of the parameters in the corresponding layer, and we add them to m and v
-            auto m_copy = make_unique<OwnedFCGradients>(
-                MatrixXd::Zero(grads->d_weights.rows(), grads->d_weights.cols()),
-                VectorXd::Zero(grads->d_bias.size()),
-                RowVectorXd::Zero(grads->d_gamma.size()),
-                RowVectorXd::Zero(grads->d_beta.size())
-            );
-            auto v_copy = make_unique<OwnedFCGradients>(
-                MatrixXd::Zero(grads->d_weights.rows(), grads->d_weights.cols()),
-                VectorXd::Zero(grads->d_bias.size()),
-                RowVectorXd::Zero(grads->d_gamma.size()),
-                RowVectorXd::Zero(grads->d_beta.size())
-            );
-            m.push_back(std::move(m_copy));
-            v.push_back(std::move(v_copy));
-        } else {
-            throw runtime_error("The type of layer was not recognized");
-        }
-    }
-}
-
-void AdamOptimizer::update_optimizer_transformer(TransformerNetwork* transformer) {
-    // TODO: Implement
+    return st;
 }
 
 void AdamOptimizer::update_optimizer() {
-    switch(network->get_type()) {
-        case NetworkType::MULTI_LAYER_PERCEPTRON:
-            update_optimizer_mlp(static_cast<MultiLayerPerceptronNetwork*>(network));
-            break;
-        case NetworkType::TRANSFORMER:
-            update_optimizer_transformer(static_cast<TransformerNetwork*>(network));
-            break;
-        default:
-            throw runtime_error("The network type was not recognized");
-    }
-}
-
-
-void AdamOptimizer::update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const {
-    vector<Layer*> layers = mlp->get_layers();
-    int num_layers = layers.size();
-    for (int layer_index = num_layers - 1; layer_index >= 0; layer_index--) {
-        // Get the gradients and the parameters of the layer
-        unique_ptr<Gradients> gradients = layers[layer_index]->get_gradients();
-        unique_ptr<Gradients> parameters = layers[layer_index]->get_params();
-
-        // If we're looking at the last layer, increment t
-        if (layer_index == num_layers - 1) {
-            t += 1;
-        }
-
-        if (layers[layer_index]->get_type() == LayerType::FULLY_CONNECTED_LAYER) {
-            // Get the gradients and the parameters of the fully connected layer
-            FCGradients* grads = gradients.get()->as_fc_gradients();
-            FCGradients* params = parameters.get()->as_fc_gradients();
-            if (!grads || !params) throw runtime_error("The gradients or parameters of layer " + to_string(layer_index) +
-                " are not stored as FCGradients");
-            
-            // Update biased first moment estimate
-            OwnedFCGradients* m_fc = m[layer_index].get()->as_owned_fc_gradients();
-            if (!m_fc) throw runtime_error("m[" + to_string(layer_index) + "] is not stored as OwnedFCGradients");
-            m_fc->d_weights = b1 * m_fc->d_weights + (1-b1) * grads->d_weights;
-            m_fc->d_bias = b1 * m_fc->d_bias + (1-b1) * grads->d_bias;
-            m_fc->d_gamma = b1 * m_fc->d_gamma + (1-b1) * grads->d_gamma;
-            m_fc->d_beta = b1 * m_fc->d_beta + (1-b1) * grads->d_beta;
-            
-            // Update biased second raw moment estimate
-            OwnedFCGradients* v_fc = v[layer_index].get()->as_owned_fc_gradients();
-            if (!v_fc) throw runtime_error("v[" + to_string(layer_index) + "] is not stored as OwnedFCGradients");
-            v_fc->d_weights = b2 * v_fc->d_weights + (1-b2) * grads->d_weights.array().square().matrix();
-            v_fc->d_bias = b2 * v_fc->d_bias + (1-b2) * grads->d_bias.array().square().matrix();
-            v_fc->d_gamma = b2 * v_fc->d_gamma + (1-b2) * grads->d_gamma.array().square().matrix();
-            v_fc->d_beta = b2 * v_fc->d_beta + (1-b2) * grads->d_beta.array().square().matrix();
-
-            // Compute bias-corrected first and second moment estimates and update the parameters
-            double bc1 = 1.0 - pow(b1, t);
-            double bc2 = 1.0 - pow(b2, t);
-            params->d_weights = params->d_weights -
-                stepsize * ((m_fc->d_weights.array() / bc1) /((v_fc->d_weights.array() / bc2).sqrt() + epsilon)).matrix();
-            params->d_bias = params->d_bias -
-                stepsize * ((m_fc->d_bias.array() / bc1) / ((v_fc->d_bias.array() / bc2).sqrt() + epsilon)).matrix();
-            params->d_gamma = params->d_gamma -
-                stepsize * ((m_fc->d_gamma.array() / bc1) / ((v_fc->d_gamma.array() / bc2).sqrt() + epsilon)).matrix();
-            params->d_beta = params->d_beta -
-                stepsize * ((m_fc->d_beta.array() / bc1) / ((v_fc->d_beta.array() / bc2).sqrt() + epsilon)).matrix();
-        } else {
-            throw runtime_error("The type of layer " + to_string(layer_index) + " was not recognized");
+    // Optional: pre-create state entries for all parameters.
+    vector<Layer*> layers = network->get_layers();
+    for (Layer* layer : layers) {
+        for (const auto& p : layer->get_parameters()) {
+            get_or_create_state(p.value_data, p.rows, p.cols);
         }
     }
-}
-
-void AdamOptimizer::update_parameters_transformer(TransformerNetwork* transformer) const {
-    // TODO: Implement
 }
 
 void AdamOptimizer::update_parameters() const {
-    switch(network->get_type()) {
-        case NetworkType::MULTI_LAYER_PERCEPTRON:
-            update_parameters_mlp(static_cast<MultiLayerPerceptronNetwork*>(network));
-            break;
-        case NetworkType::TRANSFORMER:
-            update_parameters_transformer(static_cast<TransformerNetwork*>(network));
-            break;
-        default:
-            throw runtime_error("The network type was not recognized");
+    t++;
+    const double bc1 = 1.0 - pow(b1, t);
+    const double bc2 = 1.0 - pow(b2, t);
+
+    vector<Layer*> layers = network->get_layers();
+    for (Layer* layer : layers) {
+        for (const TrainableParameter& p : layer->get_parameters()) {
+            // Both matrices and vectors appear as MatrixXd views
+            MatrixXd W = p.value();
+            MatrixXd G = p.grad();
+
+            AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
+
+            st.m = b1 * st.m + (1.0 - b1) * G;
+            st.v = b2 * st.v + (1.0 - b2) * G.array().square().matrix();
+
+            const MatrixXd m_hat = st.m / bc1;
+            const MatrixXd v_hat = st.v / bc2;
+
+            W -= stepsize * (m_hat.array() / (v_hat.array().sqrt() + epsilon)).matrix();
+        }
     }
+}
+
+OptimizerType AdamOptimizer::get_type() const {
+    return OptimizerType::ADAM;
 }

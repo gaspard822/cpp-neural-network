@@ -26,6 +26,8 @@ FeedForward::FeedForward(ActivationFunction* activation,
     d_W2 = MatrixXd(d_ff, d_model);
     d_b1 = RowVectorXd(d_ff);
     d_b2 = RowVectorXd(d_model);
+
+    params = {TrainableParameter(W1, d_W1), TrainableParameter(b1, d_b1), TrainableParameter(W2, d_W2), TrainableParameter(b2, d_b2)};
 }
 
 void FeedForward::forward(const MatrixXd& input) {
@@ -52,12 +54,8 @@ MatrixXd FeedForward::infer(const MatrixXd& input) const {
     return MatrixXd();
 }
 
-unique_ptr<Gradients> FeedForward::get_gradients() {
-    return nullptr;
-}
-
-unique_ptr<Gradients> FeedForward::get_params() {
-    return nullptr;
+const vector<TrainableParameter>& FeedForward::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& FeedForward::get_output() const {

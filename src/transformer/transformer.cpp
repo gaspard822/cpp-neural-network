@@ -9,17 +9,26 @@ TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_l
     d_k = d_v = d_model / h;
     d_ff = 4 * d_model;
 
+    layers = {};
     encoder_input_layer = new InputLayer(seq, d_model, vocab_size);
+    layers.push_back((Layer*) encoder_input_layer);
     for (int i = 0; i < num_encoder_layers; i++) {
-        encoders.push_back(new Encoder(seq, d_model, h, d_k, d_v, d_ff, activation));
+        Encoder* encoder = new Encoder(seq, d_model, h, d_k, d_v, d_ff, activation);
+        encoders.push_back(encoder);
+        layers.insert(layers.end(), encoder->get_layers().begin(), encoder->get_layers().end());
     }
 
     decoder_input_layer = new InputLayer(seq, d_model, vocab_size);
     for (int i = 0; i < num_decoder_layers; i++) {
-        decoders.push_back(new Decoder(seq, d_model, h, d_k, d_v, d_ff, activation));
+        Decoder* decoder = new Decoder(seq, d_model, h, d_k, d_v, d_ff, activation);
+        decoders.push_back(decoder);
+        layers.insert(layers.end(), decoder->get_layers().begin(), decoder->get_layers().end());
     }
 
     linear_layer = new LinearLayer(d_model, vocab_size);
+    layers.push_back((Layer*) linear_layer);
+
+    optimizer->set_network(this);
 }
 
 TransformerNetwork::~TransformerNetwork() {
@@ -96,6 +105,10 @@ void TransformerNetwork::save_model(const string& path) const {
 
 void TransformerNetwork::load_model(const string& filename) {
     // TODO
+}
+
+const vector<Layer*>& TransformerNetwork::get_layers() const {
+    return layers;
 }
 
 Optimizer* TransformerNetwork::get_optimizer() const {

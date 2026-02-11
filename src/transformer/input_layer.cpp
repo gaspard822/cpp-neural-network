@@ -11,6 +11,7 @@ InputLayer::InputLayer(int seq, int d_model, int vocab_size) : seq(seq), d_model
     embeddings.row(Tokenizer::PAD_ID).setZero();
     d_embeddings = MatrixXd::Zero(vocab_size, d_model);
     positional_encodings = compute_positional_encodings(seq, d_model);
+    params = {TrainableParameter(embeddings, d_embeddings)};
 }
 
 MatrixXd InputLayer::compute_positional_encodings(int seq, int d_model) {
@@ -62,12 +63,8 @@ MatrixXd InputLayer::infer(const MatrixXd& layer_input) const {
     return MatrixXd();
 }
 
-unique_ptr<Gradients> InputLayer::get_gradients() {
-    return nullptr;
-}
-
-unique_ptr<Gradients> InputLayer::get_params() {
-    return nullptr;
+const vector<TrainableParameter>& InputLayer::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& InputLayer::get_output() const {

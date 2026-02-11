@@ -95,7 +95,7 @@ class MultiLayerPerceptronNetwork : public Network {
         void load_model(const string& path) override;
 
         // Straightforward getter
-        const vector<Layer*>& get_layers() const;
+        const vector<Layer*>& get_layers() const override;
 
         // Straightforward getter
         Optimizer* get_optimizer() const override;

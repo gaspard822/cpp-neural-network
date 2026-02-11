@@ -28,6 +28,8 @@ class TransformerNetwork : public Network {
         vector<Decoder*> decoders;
 
         LinearLayer* linear_layer;
+
+        vector<Layer*> layers;
         
     public:
         TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
@@ -50,6 +52,9 @@ class TransformerNetwork : public Network {
          * @param path Filesystem path to the saved model
          */
         void load_model(const string& path) override;
+
+        // Straightforward getter
+        const vector<Layer*>& get_layers() const override;
 
         // Straightforward getter
         Optimizer* get_optimizer() const override;

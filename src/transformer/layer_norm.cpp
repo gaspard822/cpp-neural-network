@@ -5,8 +5,11 @@
 LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon(1e-8) {
     gamma = RowVectorXd::Ones(d_model);
     beta = RowVectorXd::Zero(d_model);
+    d_gamma = RowVectorXd(d_model);
+    d_beta = RowVectorXd(d_model);
     mean = VectorXd::Zero(seq);
     inv_sqrt_var_plus_epsilon = VectorXd::Zero(seq);
+    params = {TrainableParameter(gamma, d_gamma), TrainableParameter(beta, d_beta)};
 }
 
 void LayerNorm::forward(const MatrixXd& input) {
@@ -39,12 +42,8 @@ MatrixXd LayerNorm::infer(const MatrixXd& input) const {
     return MatrixXd();
 }
 
-unique_ptr<Gradients> LayerNorm::get_gradients() {
-    return nullptr;
-}
-
-unique_ptr<Gradients> LayerNorm::get_params() {
-    return nullptr;
+const vector<TrainableParameter>& LayerNorm::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& LayerNorm::get_output() const {

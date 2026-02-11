@@ -5,20 +5,6 @@
 #include "core/activation_function.hpp"
 
 /**
- * Struct used to pass the gradients (and parameters as well) of a fully connected layer. Stored as references to avoid
- * data movement.
- */
-struct FCGradients : public Gradients {
-    MatrixXd& d_weights;
-    VectorXd& d_bias;
-    RowVectorXd& d_gamma;
-    RowVectorXd& d_beta;
-
-    FCGradients(MatrixXd& dw, VectorXd& dbi, RowVectorXd& dg, RowVectorXd& dbe);
-    FCGradients* as_fc_gradients() override { return this; }
-};
-
-/**
  * Implements a fully connected layer with batch normalization and activation.
  */
 class FullyConnectedLayer : public Layer {
@@ -28,6 +14,7 @@ class FullyConnectedLayer : public Layer {
         RowVectorXd gamma, beta, d_gamma, d_beta, running_mean, running_variance, inv_sqrt_var_plus_epsilon;
         MatrixXd weights, d_weights, a_hat, a_bar, z;
         VectorXd bias, d_bias;
+        vector<TrainableParameter> params;
         double momentum;
         ActivationFunction* activation;
     
@@ -79,8 +66,7 @@ class FullyConnectedLayer : public Layer {
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
         // Various straightforward getters
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
         const MatrixXd& get_weights() const;

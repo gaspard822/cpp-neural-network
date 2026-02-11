@@ -9,6 +9,7 @@ class FeedForward: public Layer {
         MatrixXd X, U, H; // intermediary computations needed for the backpropagation
         MatrixXd W1, W2, d_W1, d_W2;
         RowVectorXd b1, b2, d_b1, d_b2;
+        vector<TrainableParameter> params;
         ActivationFunction* activation;
         int seq, d_model, d_ff;
 
@@ -21,8 +22,7 @@ class FeedForward: public Layer {
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
 

@@ -5,21 +5,11 @@
 #include "mlp/neural_network.hpp"
 #include "transformer/transformer.hpp"
 
-/**
- * The goal of this struct is to save the parameters of a layer, so that the Adam optimizer can store the first and 
- * second moment vectors and compute the new parameters accordingly.
- * As this struct is the structure that actually contains the parameter, they are not stored as references like in 
- * fully_connected_layer.hpp.
- */
-struct OwnedFCGradients : public Gradients {
-    MatrixXd d_weights;
-    VectorXd d_bias;
-    RowVectorXd d_gamma;
-    RowVectorXd d_beta;
-
-    OwnedFCGradients(MatrixXd dw, VectorXd dbi, RowVectorXd dg, RowVectorXd dbe);
-    OwnedFCGradients* as_owned_fc_gradients() override { return this; }
+struct AdamState {
+    MatrixXd m;
+    MatrixXd v;
 };
+
 
 /**
  * Implementation of the Adam optimization algorithm.
@@ -32,10 +22,13 @@ class AdamOptimizer : public Optimizer {
         double b1, b2;
         // Small constant to prevent division by zero
         double epsilon;
-        // First and second moment vectors for each layer
-        vector<unique_ptr<OwnedFCGradients>> m, v;
         // Time step (incremented at each parameter update), mutable to allow const update
         mutable int t;
+
+        // Key = pointer to the parameter's underlying data buffer
+        mutable unordered_map<double*, AdamState> states;
+        // Ensures that states[key] exists and has matrices with size (rows x cols)
+        AdamState& get_or_create_state(double* key, Index rows, Index cols) const;
 
     public:
         /**
@@ -60,16 +53,12 @@ class AdamOptimizer : public Optimizer {
          * Creates first and second moment vectors corresponding to the layers of the network.
          */
         void update_optimizer() override;
-        void update_optimizer_mlp(MultiLayerPerceptronNetwork* mlp);
-        void update_optimizer_transformer(TransformerNetwork* transformer);
 
         /**
          * Applies Adam parameter update to the layers of the network.
          * See Algorithm 1 in https://arxiv.org/pdf/1412.6980.
          */
         void update_parameters() const override;
-        void update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const;
-        void update_parameters_transformer(TransformerNetwork* transformer) const;
 
         /**
          * Returns the type of optimizer (Adam).

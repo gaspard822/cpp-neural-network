@@ -12,6 +12,8 @@ LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_
     
     d_W = MatrixXd(d_model, vocab_size);
     d_b = RowVectorXd(vocab_size);
+
+    params = {TrainableParameter(W, d_W), TrainableParameter(b, d_b)};
 }
 
 void LinearLayer::forward(const MatrixXd& input) {
@@ -34,12 +36,8 @@ MatrixXd LinearLayer::infer(const MatrixXd& input) const {
     return MatrixXd();
 }
 
-unique_ptr<Gradients> LinearLayer::get_gradients() {
-    return nullptr;
-}
-
-unique_ptr<Gradients> LinearLayer::get_params() {
-    return nullptr;
+const vector<TrainableParameter>& LinearLayer::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& LinearLayer::get_output() const {

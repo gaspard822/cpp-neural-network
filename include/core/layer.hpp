@@ -7,26 +7,30 @@
 using namespace Eigen;
 using namespace std;
 
-struct FCGradients;
-struct OwnedFCGradients;
+struct TrainableParameter {
+    double* value_data = nullptr;
+    double* grad_data  = nullptr;
+    Index rows = 0;
+    Index cols = 0;
 
-/**
- * Base struct used for storing gradients and parameters.
- */
-struct Gradients {
-    virtual ~Gradients() = default;
+    TrainableParameter() = default;
 
-    /**
-     * Returns a pointer to the gradients as FCGradients, if applicable.
-     * @return FCGradients* or nullptr if not compatible
-     */
-    virtual FCGradients* as_fc_gradients() { return nullptr; }
+    // Matrix parameter
+    TrainableParameter(MatrixXd& value, MatrixXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(value.rows()), cols(value.cols()) {}
 
-    /**
-     * Returns a pointer to the gradients as OwnedFCGradients, if applicable.
-     * @return OwnedFCGradients* or nullptr if not compatible
-     */
-    virtual OwnedFCGradients* as_owned_fc_gradients() { return nullptr; }
+    // Vector parameter (treat as N x 1)
+    TrainableParameter(VectorXd& value, VectorXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(value.size()), cols(1) {}
+
+    // RowVector parameter (treat as 1 x N)
+    TrainableParameter(RowVectorXd& value, RowVectorXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(1), cols(value.size()) {}
+
+    // Views for optimizers as matrices
+    Map<MatrixXd> value() const {
+        return Map<MatrixXd>(value_data, rows, cols);
+    }
+    Map<MatrixXd> grad() const {
+        return Map<MatrixXd>(grad_data, rows, cols);
+    }
 };
 
 enum class LayerType {
@@ -69,10 +73,9 @@ class Layer {
          */
         virtual MatrixXd infer(const MatrixXd& layer_input) const = 0;
 
+        virtual const vector<TrainableParameter>& get_parameters() const = 0;
 
-        // Various straightforward getters.
-        virtual unique_ptr<Gradients> get_gradients() = 0;
-        virtual unique_ptr<Gradients> get_params() = 0;
+        // Straightforward getters
         virtual const MatrixXd& get_output() const = 0;
         virtual const MatrixXd& get_d_input() const = 0;
 

@@ -44,3 +44,7 @@ const MatrixXd& Encoder::get_output() const {
 const MatrixXd& Encoder::get_d_input() const {
     return d_input;
 }
+
+const vector<Layer*> Encoder::get_layers() {
+    return layers;
+}

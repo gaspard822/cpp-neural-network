@@ -9,6 +9,7 @@ class LayerNorm: public Layer {
         VectorXd mean, inv_sqrt_var_plus_epsilon;
         RowVectorXd gamma, beta, d_gamma, d_beta;
         MatrixXd diff, normalized_input;
+        vector<TrainableParameter> params;
         double epsilon;
         int seq, d_model;
 
@@ -21,8 +22,7 @@ class LayerNorm: public Layer {
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
 

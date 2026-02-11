@@ -51,3 +51,7 @@ const MatrixXd& Decoder::get_d_input() const {
 const MatrixXd& Decoder::get_d_encoder_input() const {
     return d_encoder_input;
 }
+
+const vector<Layer*> Decoder::get_layers() {
+    return layers;
+}

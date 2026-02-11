@@ -8,6 +8,7 @@ class InputLayer: Layer {
         int seq, d_model, vocab_size;
         MatrixXd embeddings, d_embeddings;
         MatrixXd positional_encodings;
+        vector<TrainableParameter> params;
         
         vector<int> token_ids;
         MatrixXd output;
@@ -24,8 +25,7 @@ class InputLayer: Layer {
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
 

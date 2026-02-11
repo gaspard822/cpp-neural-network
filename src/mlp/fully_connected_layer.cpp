@@ -6,9 +6,6 @@
 
 using namespace std;
 
-FCGradients::FCGradients(MatrixXd& dw, VectorXd& dbi, RowVectorXd& dg, RowVectorXd& dbe):
-    d_weights(dw), d_bias(dbi), d_gamma(dg), d_beta(dbe) {}
-
 FullyConnectedLayer::FullyConnectedLayer(ActivationFunction* activation,
                                          int input_size, int output_size) : activation(activation) {
     momentum = 0.9;
@@ -36,7 +33,7 @@ FullyConnectedLayer::FullyConnectedLayer(ActivationFunction* activation,
     d_bias = VectorXd(output_size);
     d_gamma = RowVectorXd(input_size);
     d_beta = RowVectorXd(input_size);
-
+    params = {TrainableParameter(weights, d_weights), TrainableParameter(bias, d_bias)};
 }
 
 FullyConnectedLayer::FullyConnectedLayer(ActivationFunction* activation, 
@@ -58,7 +55,7 @@ FullyConnectedLayer::FullyConnectedLayer(ActivationFunction* activation,
     d_bias = VectorXd(output_size);
     d_gamma = RowVectorXd(input_size);
     d_beta = RowVectorXd(input_size);
-
+    params = {TrainableParameter(weights, d_weights), TrainableParameter(bias, d_bias)};
 }
 
 FullyConnectedLayer::~FullyConnectedLayer() {
@@ -123,12 +120,8 @@ MatrixXd FullyConnectedLayer::infer(const MatrixXd& layer_input) const {
     return activation->apply(z_input);
 }
 
-unique_ptr<Gradients> FullyConnectedLayer::get_gradients() {
-    return make_unique<FCGradients>(d_weights, d_bias, d_gamma, d_beta);
-}
-
-unique_ptr<Gradients> FullyConnectedLayer::get_params() {
-    return make_unique<FCGradients>(weights, bias, gamma, beta);
+const vector<TrainableParameter>& FullyConnectedLayer::get_parameters() const {
+    return params;
 }
 
 const MatrixXd& FullyConnectedLayer::get_weights() const {

@@ -7,6 +7,7 @@ VanillaSGDOptimizer::VanillaSGDOptimizer(Network* new_nn, double stepsize) : Opt
 void VanillaSGDOptimizer::update_optimizer() {}
 
 void VanillaSGDOptimizer::update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const {
+    /*
     vector<Layer*> layers = mlp->get_layers();
     int num_layers = layers.size();
     for (int layer_index = num_layers - 1; layer_index >= 0; layer_index--) {
@@ -29,6 +30,7 @@ void VanillaSGDOptimizer::update_parameters_mlp(MultiLayerPerceptronNetwork* mlp
             throw runtime_error("The type of layer " + to_string(layer_index) + " was not recognized");
         }
     }
+    */
 }
 
 void VanillaSGDOptimizer::update_parameters_transformer(TransformerNetwork* transformer) const {

@@ -6,7 +6,6 @@
 #include "core/adam_optimizer.hpp"
 #include "transformer/tokenizer.hpp"
 
-/*
 static inline pair<string, string> parse_csv_line_two_columns(const string& line) {
     string col1, col2;
     string* current = &col1;
@@ -40,7 +39,7 @@ static inline pair<string, string> parse_csv_line_two_columns(const string& line
 }
 
 
-pair<vector<VectorXi>, vector<VectorXi>> load_tokenized_sentences_from_csv(const string& csv_path, Tokenizer& tokenizer) {
+pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv(const string& csv_path, Tokenizer& tokenizer) {
     ifstream in(csv_path, ios::binary);
     if (!in) {
         throw runtime_error("Can not open CSV file: " + csv_path);
@@ -50,8 +49,8 @@ pair<vector<VectorXi>, vector<VectorXi>> load_tokenized_sentences_from_csv(const
     string header;
     getline(in, header);
 
-    vector<VectorXi> en_sentences;
-    vector<VectorXi> fr_sentences;
+    vector<vector<int>> en_sentences;
+    vector<vector<int>> fr_sentences;
 
     string line;
     int i = 0;
@@ -74,8 +73,6 @@ pair<vector<VectorXi>, vector<VectorXi>> load_tokenized_sentences_from_csv(const
 
     return {en_sentences, fr_sentences};
 }
-*/
-
 
 void test_tokenizer(Tokenizer* tokenizer) {
     const string sentence = "Hello, my name is Benoît";
@@ -90,18 +87,6 @@ void test_tokenizer(Tokenizer* tokenizer) {
     cout << "Decoding: " << decoding << endl;
 }
 
-
-void doing_stuff() {
-    int seq = 2, d_model = 4, h = 2;
-    int d_k, d_v = d_model / h;
-    const string path_to_text = "../translation/en-fr-short.csv";
-
-    Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
-
-    test_tokenizer(tokenizer);
-}
-
-
 void train_test_translation() {
     const string path_to_text = "../translation/en-fr-short.csv";
     int num_encoder_layers = 2;
@@ -110,21 +95,36 @@ void train_test_translation() {
     int d_model = 8;
     int h = 2;
     Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
+    test_tokenizer(tokenizer);
     ActivationFunction* activation = new Relu();
     CrossEntropy* cross_entropy_loss = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
     TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
+    transformer_network->get_optimizer()->update_optimizer();
 
+    /*
     const string encoder_sentence = "Hello";
     const string decoder_sentence = "Bonjour";
     cout << "Encoder sentence: " << encoder_sentence << endl;  // debug
     cout << "Decoder sentence: " << decoder_sentence << endl;  // debug
     vector<int> encoder_token_ids = tokenizer->encode(encoder_sentence);
     vector<int> decoder_token_ids = tokenizer->encode(decoder_sentence);
-    vector<int> decoder_input_token_ids(decoder_token_ids.begin(), decoder_token_ids.end() - 2);
+    vector<int> decoder_input_token_ids(decoder_token_ids.begin(), decoder_token_ids.end() - 1);
     vector<int> decoder_target_token_ids(decoder_token_ids.begin() + 1, decoder_token_ids.end());
     MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_input_token_ids);
     cout << "\n\n\n\n\n ======================================= \n\n\n\n\n" << endl;  // debug
     transformer_network->backward(decoder_target_token_ids, forward_X_batch);
+    */
+
+    auto [en_sentences, fr_sentences] = load_tokenized_sentences_from_csv(path_to_text, *tokenizer);
+    int num_sentences = en_sentences.size();
+    for (int i = 0; i < num_sentences; i++) {
+        vector<int> encoder_token_ids = en_sentences[i];
+        vector<int> decoder_input_token_ids(fr_sentences[i].begin(), fr_sentences[i].end() - 1);
+        vector<int> decoder_target_token_ids(fr_sentences[i].begin() + 1, fr_sentences[i].end());
+        MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_input_token_ids);
+        transformer_network->backward(decoder_target_token_ids, forward_X_batch);
+        cout << "Loss: " << cross_entropy_loss->compute(decoder_target_token_ids, forward_X_batch) << endl;
+    }
 }

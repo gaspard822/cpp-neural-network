@@ -8,6 +8,7 @@ class LinearLayer: public Layer {
         MatrixXd X;
         MatrixXd W, d_W;
         RowVectorXd b, d_b;
+        vector<TrainableParameter> params;
         int d_model, vocab_size;
 
     public:
@@ -19,8 +20,7 @@ class LinearLayer: public Layer {
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
 
-        unique_ptr<Gradients> get_gradients() override;
-        unique_ptr<Gradients> get_params() override;
+        const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
 
