@@ -49,18 +49,18 @@ void AdamOptimizer::update_parameters() const {
     for (Layer* layer : layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
             // Both matrices and vectors appear as MatrixXd views
-            MatrixXd W = p.value();
-            MatrixXd G = p.grad();
+            MatrixXd weights = p.value();
+            MatrixXd gradients = p.grad();
 
             AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
 
-            st.m = b1 * st.m + (1.0 - b1) * G;
-            st.v = b2 * st.v + (1.0 - b2) * G.array().square().matrix();
+            st.m = b1 * st.m + (1.0 - b1) * gradients;
+            st.v = b2 * st.v + (1.0 - b2) * gradients.array().square().matrix();
 
             const MatrixXd m_hat = st.m / bc1;
             const MatrixXd v_hat = st.v / bc2;
 
-            W -= stepsize * (m_hat.array() / (v_hat.array().sqrt() + epsilon)).matrix();
+            weights -= stepsize * (m_hat.array() / (v_hat.array().sqrt() + epsilon)).matrix();
         }
     }
 }
