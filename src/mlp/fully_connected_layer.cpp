@@ -172,6 +172,10 @@ void FullyConnectedLayer::set_inv_sqrt_var_plus_epsilon(RowVectorXd new_inv_sqrt
     inv_sqrt_var_plus_epsilon = new_inv_sqrt_var_plus_epsilon;
 }
 
+string FullyConnectedLayer::get_layer_name() const {
+    return "FullyConnectedLayer";
+}
+
 string FullyConnectedLayer::get_activation_name() const {
     if (activation->get_type() == ActivationType::RELU) {
         return "relu";

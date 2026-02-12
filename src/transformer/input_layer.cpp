@@ -33,26 +33,18 @@ void InputLayer::forward(const MatrixXd& input) {
 }
 
 void InputLayer::forward(const vector<int>& input_token_ids) {
-    cout << "========== InputLayer::forward() ==========" << endl;  // debug
-    cout << "token_ids:" << endl;
     token_ids = input_token_ids;
-    for (auto it = input_token_ids.begin(); it != input_token_ids.end(); it++) {  // debug
-        cout << *it << ", ";
-    }
-    cout << endl;
     int num_tokens = input_token_ids.size();
     output = MatrixXd::Zero(num_tokens, d_model);
     for (int i = 0; i < num_tokens; i++) {
         output.row(i) = embeddings.row(input_token_ids[i]);
     }
     output += positional_encodings.topRows(output.rows());
-    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void InputLayer::backward(const MatrixXd& d_output) {
     int num_tokens = token_ids.size();
 
-    d_embeddings.setZero();  // FIXME: This might be expensive if we use fancier tokenizers that have large vocab_size
     for (int i = 0; i < num_tokens; i++) {
         d_embeddings.row(token_ids[i]) += d_output.row(i);
     }
@@ -73,6 +65,10 @@ const MatrixXd& InputLayer::get_output() const {
 
 const MatrixXd& InputLayer::get_d_input() const {
     return d_input;
+}
+
+string InputLayer::get_layer_name() const {
+    return "InputLayer";
 }
 
 string InputLayer::get_activation_name() const {

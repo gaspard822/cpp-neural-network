@@ -80,8 +80,14 @@ class Layer {
         virtual const MatrixXd& get_d_input() const = 0;
 
         /**
-         * Returns the name of the activation function used by the layer (used in
-         * NeuralNetwork::save_model(const string& path) and NeuralNetwork::load_model(const string& path)).
+         * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
+         * @return string Name of the loss function
+         */
+        virtual string get_layer_name() const = 0;
+
+        /**
+         * Returns the name of the activation function used by the layer (used in save_model(const string& path) and
+         * load_model(const string& path)).
          * @return string Name of the loss function
          */
         virtual string get_activation_name() const = 0;

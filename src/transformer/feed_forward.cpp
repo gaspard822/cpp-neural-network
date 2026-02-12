@@ -32,21 +32,18 @@ FeedForward::FeedForward(ActivationFunction* activation,
 
 void FeedForward::forward(const MatrixXd& input) {
     // input : (num_tokens, d_model)
-    cout << "========== FeedForward::forward() ==========" << endl;  // debug
     X = input;
     U = (input * W1).rowwise() + b1;
-    cout << "U (" << U.rows() << "," << U.cols() << "):" << endl << U << endl; // debug
     H = activation->apply(U);
     output = ((H * W2).rowwise() + b2) + input;
-    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void FeedForward::backward(const MatrixXd& d_output) {
-    d_W2 = H.transpose() * d_output;
-    d_b2 = d_output.colwise().sum();
+    d_W2 += H.transpose() * d_output;
+    d_b2 += d_output.colwise().sum();
     MatrixXd d_U = (d_output * W2.transpose()).cwiseProduct(activation->derivative(U));
-    d_W1 = X.transpose() * d_U;
-    d_b1 = d_U.colwise().sum();
+    d_W1 += X.transpose() * d_U;
+    d_b1 += d_U.colwise().sum();
     d_input = d_U * W1.transpose() + d_output;
 }
 
@@ -64,6 +61,10 @@ const MatrixXd& FeedForward::get_output() const {
 
 const MatrixXd& FeedForward::get_d_input() const {
     return d_input;
+}
+
+string FeedForward::get_layer_name() const {
+    return "FeedForward";
 }
 
 string FeedForward::get_activation_name() const {

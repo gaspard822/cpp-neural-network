@@ -1,3 +1,4 @@
+#include <iostream>
 #include "transformer/decoder.hpp"
 
 Decoder::Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
@@ -52,6 +53,6 @@ const MatrixXd& Decoder::get_d_encoder_input() const {
     return d_encoder_input;
 }
 
-const vector<Layer*> Decoder::get_layers() {
+const vector<Layer*>& Decoder::get_layers() {
     return layers;
 }

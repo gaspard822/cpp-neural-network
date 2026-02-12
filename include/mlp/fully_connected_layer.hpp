@@ -78,8 +78,14 @@ class FullyConnectedLayer : public Layer {
         const RowVectorXd& get_inv_sqrt_var_plus_epsilon() const;
 
         /**
-         * Returns the name of the activation function used by the layer (used in
-         * NeuralNetwork::save_model(const string& path) and NeuralNetwork::load_model(const string& path)).
+         * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
+         * @return string Name of the loss function
+         */
+        string get_layer_name() const override;
+
+        /**
+         * Returns the name of the activation function used by the layer (used in save_model(const string& path) and
+         * load_model(const string& path)).
          * @return string Name of the loss function
          */
         string get_activation_name() const override;

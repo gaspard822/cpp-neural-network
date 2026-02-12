@@ -11,7 +11,7 @@ AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, d
         throw invalid_argument("beta1 and beta2 must be in the interval [0, 1)");
     }
     t = 0;
-    epsilon = 1e-8;
+    epsilon = 1e-6;
 }
 
 AdamOptimizer::AdamOptimizer(Network* new_network) : AdamOptimizer(new_network, 0.001, 0.9, 0.999) {}
@@ -32,6 +32,7 @@ AdamState& AdamOptimizer::get_or_create_state(double* key, Index rows, Index col
 
 void AdamOptimizer::update_optimizer() {
     // Optional: pre-create state entries for all parameters.
+    if (network->get_type() == NetworkType::TRANSFORMER) cout << "Transformer" << endl;
     vector<Layer*> layers = network->get_layers();
     for (Layer* layer : layers) {
         for (const auto& p : layer->get_parameters()) {
@@ -49,8 +50,8 @@ void AdamOptimizer::update_parameters() const {
     for (Layer* layer : layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
             // Both matrices and vectors appear as MatrixXd views
-            MatrixXd weights = p.value();
-            MatrixXd gradients = p.grad();
+            auto weights = p.value();
+            auto gradients = p.grad();
 
             AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
 

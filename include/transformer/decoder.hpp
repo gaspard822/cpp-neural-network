@@ -21,7 +21,7 @@ class Decoder {
         const MatrixXd& get_output() const;
         const MatrixXd& get_d_input() const;
         const MatrixXd& get_d_encoder_input() const;
-        const vector<Layer*> get_layers();
+        const vector<Layer*>& get_layers();
 };
 
 #endif

@@ -212,10 +212,10 @@ void train_test_mnist() {
     // Save the trained model
     mlp.save_model("../models/testing_stuff.txt");
     // Create a new network and load the architecture and parameters of the previously trained network
-    MultiLayerPerceptronNetwork nn_test;
-    nn_test.load_model("../models/testing_stuff.txt");
+    MultiLayerPerceptronNetwork mlp_test;
+    mlp_test.load_model("../models/testing_stuff.txt");
     // Infer the testing set
-    MatrixXd inference = nn_test.infer(X_test);
+    MatrixXd inference = mlp_test.infer(X_test);
     // For each sample, take the index of the logit with the highest value as the prediction
     int num_samples = X_test.rows();
     VectorXd prediction(num_samples);

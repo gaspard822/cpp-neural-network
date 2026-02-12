@@ -91,11 +91,11 @@ void train_test_translation() {
     const string path_to_text = "../translation/en-fr-short.csv";
     int num_encoder_layers = 2;
     int num_decoder_layers = 2;
-    int seq = 64;
-    int d_model = 8;
-    int h = 2;
+    int seq = 256;
+    int d_model = 64;
+    int h = 4;
     Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
-    test_tokenizer(tokenizer);
+    // test_tokenizer(tokenizer);
     ActivationFunction* activation = new Relu();
     CrossEntropy* cross_entropy_loss = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
@@ -103,28 +103,16 @@ void train_test_translation() {
     TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
     transformer_network->get_optimizer()->update_optimizer();
 
-    /*
-    const string encoder_sentence = "Hello";
-    const string decoder_sentence = "Bonjour";
-    cout << "Encoder sentence: " << encoder_sentence << endl;  // debug
-    cout << "Decoder sentence: " << decoder_sentence << endl;  // debug
-    vector<int> encoder_token_ids = tokenizer->encode(encoder_sentence);
-    vector<int> decoder_token_ids = tokenizer->encode(decoder_sentence);
-    vector<int> decoder_input_token_ids(decoder_token_ids.begin(), decoder_token_ids.end() - 1);
-    vector<int> decoder_target_token_ids(decoder_token_ids.begin() + 1, decoder_token_ids.end());
-    MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_input_token_ids);
-    cout << "\n\n\n\n\n ======================================= \n\n\n\n\n" << endl;  // debug
-    transformer_network->backward(decoder_target_token_ids, forward_X_batch);
-    */
-
     auto [en_sentences, fr_sentences] = load_tokenized_sentences_from_csv(path_to_text, *tokenizer);
-    int num_sentences = en_sentences.size();
-    for (int i = 0; i < num_sentences; i++) {
-        vector<int> encoder_token_ids = en_sentences[i];
-        vector<int> decoder_input_token_ids(fr_sentences[i].begin(), fr_sentences[i].end() - 1);
-        vector<int> decoder_target_token_ids(fr_sentences[i].begin() + 1, fr_sentences[i].end());
-        MatrixXd forward_X_batch = transformer_network->forward(encoder_token_ids, decoder_input_token_ids);
-        transformer_network->backward(decoder_target_token_ids, forward_X_batch);
-        cout << "Loss: " << cross_entropy_loss->compute(decoder_target_token_ids, forward_X_batch) << endl;
+    transformer_network->train(en_sentences, fr_sentences, 100);
+    
+    const string encoder_sentence = "About two thirds of Canadians can no longer see the Milky Way.";
+    vector<int> encoder_token_ids = tokenizer->encode(encoder_sentence);
+    vector<int> predicted_token_ids = transformer_network->infer(encoder_token_ids);
+    for (auto it = predicted_token_ids.begin(); it != predicted_token_ids.end(); it++) {
+        cout << *it << ", ";
     }
+    cout << endl;
+    string predicted_sentence = tokenizer->decode(predicted_token_ids);
+    cout << "Predicted: " << predicted_sentence << endl;
 }

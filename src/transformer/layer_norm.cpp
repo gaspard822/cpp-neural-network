@@ -14,22 +14,17 @@ LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon
 
 void LayerNorm::forward(const MatrixXd& input) {
     // input: (num_tokens, d_model)
-    cout << "========== LayerNorm::forward() ==========" << endl;  // debug
     mean = input.rowwise().mean();  // per-token average
-    cout << "mean:" << endl << mean << endl;  // debug
     diff = input.colwise() - mean;  // centered tokens
     VectorXd variance = diff.array().square().rowwise().mean();
     inv_sqrt_var_plus_epsilon = VectorXd::Ones(variance.rows()).array() / (variance.array() + epsilon).sqrt();
-
-    normalized_input = diff.array().colwise() / inv_sqrt_var_plus_epsilon.array();  // normalized tokens
-    cout << "normalized_input:" << endl << normalized_input << endl;  // debug
+    normalized_input = diff.array().colwise() * inv_sqrt_var_plus_epsilon.array();  // normalized tokens
     output = (normalized_input.array().rowwise() * gamma.array()).rowwise() + beta.array();  // normalized tokens scaled w.r.t. the d_model dimension
-    cout << "+++ output (" << output.rows() << "," << output.cols() << "):" << endl << output << endl << endl; // debug
 }
 
 void LayerNorm::backward(const MatrixXd& d_output) {
-    d_gamma = (d_output.array() * normalized_input.array()).colwise().sum();
-    d_beta = d_output.colwise().sum();
+    d_gamma += (d_output.array() * normalized_input.array()).colwise().sum().matrix();
+    d_beta += d_output.colwise().sum();
     MatrixXd d_normalized_input = d_output.array().rowwise() * gamma.array();
 
     d_input = diff.array().colwise() * inv_sqrt_var_plus_epsilon.array().pow(3);
@@ -52,6 +47,10 @@ const MatrixXd& LayerNorm::get_output() const {
 
 const MatrixXd& LayerNorm::get_d_input() const {
     return d_input;
+}
+
+string LayerNorm::get_layer_name() const {
+    return "LayerNorm";
 }
 
 string LayerNorm::get_activation_name() const {

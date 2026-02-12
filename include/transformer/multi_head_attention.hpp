@@ -36,6 +36,7 @@ class MultiHeadAttention : public Layer {
         const MatrixXd& get_d_input() const override;
         const MatrixXd& get_d_encoder_output() const;
 
+        string get_layer_name() const override;
         string get_activation_name() const override;
         LayerType get_type() const override;
 

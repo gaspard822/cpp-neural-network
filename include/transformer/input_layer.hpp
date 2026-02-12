@@ -29,6 +29,7 @@ class InputLayer: Layer {
         const MatrixXd& get_output() const override;
         const MatrixXd& get_d_input() const override;
 
+        string get_layer_name() const override;
         string get_activation_name() const override;
         LayerType get_type() const override;
 };

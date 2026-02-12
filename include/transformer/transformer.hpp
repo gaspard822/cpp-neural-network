@@ -39,7 +39,10 @@ class TransformerNetwork : public Network {
 
         MatrixXd forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
         void backward(const vector<int>& y_true, const MatrixXd& y_pred);
-        void train();
+        vector<int> infer(const vector<int>& encoder_token_ids) const;
+        void reset_gradients();
+        void normalize_gradients(int batch_size);
+        void train(vector<vector<int>>& encoder_sentences, vector<vector<int>>& decoder_sentences, int batch_size);
 
         /**
          * Saves the model's architecture and parameters to a .txt file.

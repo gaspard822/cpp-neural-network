@@ -17,10 +17,7 @@ Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
 
 void Encoder::forward(const MatrixXd& input) {
     const MatrixXd* layer_output = &input;
-    int i = 0;
     for (Layer* layer: layers) {
-        cout << "Forwarding through layer " << i << " of the encoder." << endl;  // debug
-        i++;
         layer->forward(*layer_output);
         layer_output = &layer->get_output();
     }
@@ -45,6 +42,6 @@ const MatrixXd& Encoder::get_d_input() const {
     return d_input;
 }
 
-const vector<Layer*> Encoder::get_layers() {
+const vector<Layer*>& Encoder::get_layers() {
     return layers;
 }
