@@ -14,7 +14,7 @@ AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, d
     epsilon = 1e-6;
 }
 
-AdamOptimizer::AdamOptimizer(Network* new_network) : AdamOptimizer(new_network, 0.001, 0.9, 0.999) {}
+AdamOptimizer::AdamOptimizer(Network* new_network) : AdamOptimizer(new_network, 0.0005, 0.9, 0.999) {}
 
 AdamState& AdamOptimizer::get_or_create_state(double* key, Index rows, Index cols) const {
     // operator[] inserts default AdamState if missing

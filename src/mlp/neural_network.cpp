@@ -192,7 +192,7 @@ MatrixXd MultiLayerPerceptronNetwork::infer(const MatrixXd& input) const {
 }
 
 void MultiLayerPerceptronNetwork::save_model(const string& path) const {
-    // In this function, we save:
+    // We save:
     // 1. The number of layers
     // 2. The type of the optimizer
     // 3. For each layer, we save:
@@ -209,7 +209,7 @@ void MultiLayerPerceptronNetwork::save_model(const string& path) const {
     } else if (optimizer->get_type() == OptimizerType::VANILLA_SGD) {
         file << "VanillaSGD" << "\n";
     } else {
-        throw runtime_error("No optimizer is defined, the network can hence not be saved");
+        throw runtime_error("No optimizer is defined, the network can not be saved");
     }
     for (auto* layer : layers) {
         auto* fc = dynamic_cast<FullyConnectedLayer*>(layer);

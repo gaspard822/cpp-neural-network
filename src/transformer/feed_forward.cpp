@@ -48,7 +48,9 @@ void FeedForward::backward(const MatrixXd& d_output) {
 }
 
 MatrixXd FeedForward::infer(const MatrixXd& input) const {
-    return MatrixXd();
+    MatrixXd U_tmp = (input * W1).rowwise() + b1;
+    MatrixXd H_tmp = activation->apply(U_tmp);
+    return ((H_tmp * W2).rowwise() + b2) + input;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {

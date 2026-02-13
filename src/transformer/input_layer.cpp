@@ -55,6 +55,16 @@ MatrixXd InputLayer::infer(const MatrixXd& layer_input) const {
     return MatrixXd();
 }
 
+MatrixXd InputLayer::infer(const vector<int>& input_token_ids) const {
+    int num_tokens = input_token_ids.size();
+    MatrixXd output_tmp = MatrixXd::Zero(num_tokens, d_model);
+    for (int i = 0; i < num_tokens; i++) {
+        output_tmp.row(i) = embeddings.row(input_token_ids[i]);
+    }
+    output_tmp += positional_encodings.topRows(output_tmp.rows());
+    return output_tmp;
+}
+
 const vector<TrainableParameter>& InputLayer::get_parameters() const {
     return params;
 }

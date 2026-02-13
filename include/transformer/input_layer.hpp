@@ -24,6 +24,7 @@ class InputLayer: Layer {
         void backward(const MatrixXd& d_output) override;
 
         MatrixXd infer(const MatrixXd& layer_input) const override;
+        MatrixXd infer(const vector<int>& token_ids) const;
 
         const vector<TrainableParameter>& get_parameters() const override;
         const MatrixXd& get_output() const override;
@@ -32,6 +33,9 @@ class InputLayer: Layer {
         string get_layer_name() const override;
         string get_activation_name() const override;
         LayerType get_type() const override;
+
+        // void save(const string& path) const;
+        // InputLayer* load(const string& path) const;
 };
 
 #endif

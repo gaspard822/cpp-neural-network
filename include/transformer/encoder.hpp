@@ -16,6 +16,7 @@ class Encoder {
         Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);
         void forward(const MatrixXd& input);
         void backward(const MatrixXd& d_output);
+        MatrixXd infer(const MatrixXd& input);
         const MatrixXd& get_output() const;
         const MatrixXd& get_d_input() const;
         const vector<Layer*>& get_layers();

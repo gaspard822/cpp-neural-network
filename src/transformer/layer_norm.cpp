@@ -34,7 +34,13 @@ void LayerNorm::backward(const MatrixXd& d_output) {
 }
 
 MatrixXd LayerNorm::infer(const MatrixXd& input) const {
-    return MatrixXd();
+    // input: (num_tokens, d_model)
+    VectorXd mean_tmp = input.rowwise().mean();  // per-token average
+    MatrixXd diff_tmp = input.colwise() - mean_tmp;  // centered tokens
+    VectorXd variance_tmp = diff_tmp.array().square().rowwise().mean();
+    VectorXd inv_sqrt_var_plus_epsilon_tmp = VectorXd::Ones(variance_tmp.rows()).array() / (variance_tmp.array() + epsilon).sqrt();
+    MatrixXd normalized_input = diff_tmp.array().colwise() * inv_sqrt_var_plus_epsilon_tmp.array();  // normalized tokens
+    return (normalized_input.array().rowwise() * gamma.array()).rowwise() + beta.array();  // normalized tokens scaled w.r.t. the d_model dimension
 }
 
 const vector<TrainableParameter>& LayerNorm::get_parameters() const {

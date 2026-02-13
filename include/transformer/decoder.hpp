@@ -18,6 +18,7 @@ class Decoder {
 
         void forward(const MatrixXd& encoder_input, const MatrixXd& decoder_input);
         void backward(const MatrixXd& d_output);
+        MatrixXd infer(const MatrixXd& encoder_input, const MatrixXd& decoder_input);
         const MatrixXd& get_output() const;
         const MatrixXd& get_d_input() const;
         const MatrixXd& get_d_encoder_input() const;

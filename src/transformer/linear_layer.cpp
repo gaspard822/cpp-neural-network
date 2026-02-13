@@ -29,7 +29,7 @@ void LinearLayer::backward(const MatrixXd& d_output) {
 }
 
 MatrixXd LinearLayer::infer(const MatrixXd& input) const {
-    return MatrixXd();
+    return (input * W).rowwise() + b;
 }
 
 const vector<TrainableParameter>& LinearLayer::get_parameters() const {

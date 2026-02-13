@@ -34,6 +34,14 @@ void Encoder::backward(const MatrixXd& d_output) {
     d_input = *layer_d_input;
 }
 
+MatrixXd Encoder::infer(const MatrixXd& input) {
+    MatrixXd output = input;
+    for (Layer* layer : layers) {
+        output = layer->infer(output);
+    }
+    return output;
+}
+
 const MatrixXd& Encoder::get_output() const {
     return output;
 }

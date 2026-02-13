@@ -2,6 +2,7 @@
 #define TRANSFORMER_HPP
 
 #include "core/network.hpp"
+#include "transformer/tokenizer.hpp"
 #include "transformer/input_layer.hpp"
 #include "transformer/encoder.hpp"
 #include "transformer/decoder.hpp"
@@ -39,10 +40,15 @@ class TransformerNetwork : public Network {
 
         MatrixXd forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
         void backward(const vector<int>& y_true, const MatrixXd& y_pred);
-        vector<int> infer(const vector<int>& encoder_token_ids) const;
+        void infer(const vector<vector<int>>& encoder_token_ids, Tokenizer* tokenizer, const string& csv_path) const;
+        double compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val);
         void reset_gradients();
         void normalize_gradients(int batch_size);
-        void train(vector<vector<int>>& encoder_sentences, vector<vector<int>>& decoder_sentences, int batch_size);
+        void train(
+            vector<vector<int>>& encoder_tokens_train, vector<vector<int>>& decoder_tokens_train,
+            vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val,
+            int epochs, int batch_size
+        );
 
         /**
          * Saves the model's architecture and parameters to a .txt file.

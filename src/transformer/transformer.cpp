@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <random>
 #include "transformer/transformer.hpp"
 #include "transformer/tokenizer.hpp"
 
@@ -89,6 +91,55 @@ void TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_p
     encoder_input_layer->backward(*encoder_d_input);
 }
 
+void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, Tokenizer* tokenizer, const string& csv_path) const {
+    ofstream file(csv_path);
+    if (!file.is_open()) throw runtime_error("Could not open the file");
+
+    int N = encoder_token_ids.size();
+    for (int i = 0; i < N; i++) {
+        MatrixXd encoder_output = encoder_input_layer->infer(encoder_token_ids[i]);
+        // Forward that embedding into the encoders
+        for (Encoder* encoder: encoders) {
+            encoder_output = encoder->infer(encoder_output);
+        }
+    
+        int last_token = Tokenizer::SOS_ID;
+        vector<int> predicted_tokens = {last_token};
+        int max_size = seq;
+        while ((last_token != Tokenizer::EOS_ID) && (predicted_tokens.size() < max_size)) {
+            decoder_input_layer->infer(predicted_tokens);
+            MatrixXd decoder_output = decoder_input_layer->get_output();
+            // Get the decoder's embeddings corresponding to the given text
+            // Forward that embedding into the encoders
+            for (Decoder* decoder: decoders) {
+                decoder_output = decoder->infer(encoder_output, decoder_output);
+            }
+    
+            decoder_output = linear_layer->infer(decoder_output);
+            MatrixXd linear_layer_output = linear_layer->get_output();
+            int last_row = linear_layer_output.rows() - 1;
+            linear_layer_output.row(last_row).maxCoeff(&last_token);
+            predicted_tokens.push_back(last_token);
+        }
+        string input_sentence = tokenizer->decode(encoder_token_ids[i]);
+        string predicted_sentence = tokenizer->decode(predicted_tokens);
+        file << "\"" << input_sentence << "\"," << "\"" << predicted_sentence << "\"\n";
+    }
+    file.close();
+}
+
+double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val) {
+    int N = encoder_tokens_val.size();
+    double loss = 0;
+    for (int i = 0; i < N; i++) {
+        const vector<int> decoder_input_token_ids(decoder_tokens_val[i].begin(), decoder_tokens_val[i].end() - 1);
+        const vector<int> decoder_target_token_ids(decoder_tokens_val[i].begin() + 1, decoder_tokens_val[i].end());
+        MatrixXd forwarded_sentence = forward(encoder_tokens_val[i], decoder_input_token_ids);
+        loss += cross_entropy_loss->compute(decoder_target_token_ids, forwarded_sentence);
+    }
+    return loss / N;
+}
+
 void TransformerNetwork::reset_gradients() {
     for (Layer* layer: layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
@@ -106,60 +157,40 @@ void TransformerNetwork::normalize_gradients(int batch_size) {
     }
 }
 
-void TransformerNetwork::train(vector<vector<int>>& encoder_sentences, vector<vector<int>>& decoder_sentences, int batch_size) {
-    int num_sentences = encoder_sentences.size();
-    int skipped_sentences = 0;
-    reset_gradients();
-    for (int i = 0; i < 1; i++) {
-        if ((encoder_sentences[i].size() > seq) || (decoder_sentences[i].size() > seq)) {
-            skipped_sentences++;
-            continue;
-        }
-        vector<int> encoder_token_ids = encoder_sentences[i];
-        vector<int> decoder_input_token_ids(decoder_sentences[i].begin(), decoder_sentences[i].end() - 1);
-        vector<int> decoder_target_token_ids(decoder_sentences[i].begin() + 1, decoder_sentences[i].end());
-        MatrixXd forward_X_batch = forward(encoder_token_ids, decoder_input_token_ids);
-        backward(decoder_target_token_ids, forward_X_batch);
-        
-        if (i % batch_size == 0) {
-            double loss = cross_entropy_loss->compute(decoder_target_token_ids, forward_X_batch);
-            normalize_gradients(batch_size);
-            optimizer->update_parameters();
-            reset_gradients();
-        }
-    }
-    cout << "Skipped " << skipped_sentences << " sentences" << endl;
-}
+void TransformerNetwork::train(
+    vector<vector<int>>& encoder_tokens_train, vector<vector<int>>& decoder_tokens_train,
+    vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val,
+    int epochs, int batch_size) {
 
-vector<int> TransformerNetwork::infer(const vector<int>& encoder_token_ids) const {
-    encoder_input_layer->forward(encoder_token_ids);
-    const MatrixXd* encoder_output = &encoder_input_layer->get_output();
-    // Forward that embedding into the encoders
-    for (Encoder* encoder: encoders) {
-        encoder->forward(*encoder_output);
-        encoder_output = &encoder->get_output();
-    }
+    for (int epoch = 0; epoch < epochs; epoch++) {
+        cout << "Epoch " << epoch << endl;
 
-    int last_token = Tokenizer::SOS_ID;
-    vector<int> predicted_tokens = {last_token};
-    int max_size = 100;
-    while ((last_token != Tokenizer::EOS_ID) && (predicted_tokens.size() < max_size)) {
-        decoder_input_layer->forward(predicted_tokens);
-        const MatrixXd* decoder_output = &decoder_input_layer->get_output();
-        // Get the decoder's embeddings corresponding to the given text
-        // Forward that embedding into the encoders
-        for (Decoder* decoder: decoders) {
-            decoder->forward(*encoder_output, *decoder_output);
-            decoder_output = &decoder->get_output();
+        int N = encoder_tokens_train.size();
+
+        vector<int> indices(N);
+        iota(indices.begin(), indices.end(), 0);  // 0, 1, 2, ..., N-1
+        random_device rd;
+        mt19937 gen(rd());
+        shuffle(indices.begin(), indices.end(), gen);
+
+        for (int start = 0; start < N; start += batch_size) {
+            int end = min(start + batch_size, N);
+            for (int i = start; i < end; i++) {
+                int idx = indices[i];
+                const vector<int>& encoder_token_ids = encoder_tokens_train[idx];
+                const vector<int>& decoder_token_ids = decoder_tokens_train[idx];
+                const vector<int> decoder_input_token_ids(decoder_token_ids.begin(), decoder_token_ids.end() - 1);
+                const vector<int> decoder_target_token_ids(decoder_token_ids.begin() + 1, decoder_token_ids.end());
+                MatrixXd forwarded = forward(encoder_token_ids, decoder_input_token_ids);
+                backward(decoder_target_token_ids, forwarded);
+            }
         }
-
-        linear_layer->forward(*decoder_output);
-        MatrixXd linear_layer_output = linear_layer->get_output();
-        int last_row = linear_layer_output.rows() - 1;
-        linear_layer_output.row(last_row).maxCoeff(&last_token);
-        predicted_tokens.push_back(last_token);
+        double loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
+        cout << "Loss: " << loss << endl;
+        normalize_gradients(batch_size);
+        optimizer->update_parameters();
+        reset_gradients();
     }
-    return predicted_tokens;
 }
 
 void TransformerNetwork::save_model(const string& path) const {

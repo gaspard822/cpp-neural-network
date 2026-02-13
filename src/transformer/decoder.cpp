@@ -41,6 +41,15 @@ void Decoder::backward(const MatrixXd& d_output) {
     d_encoder_input = mha_cross->get_d_encoder_output();
 }
 
+MatrixXd Decoder::infer(const MatrixXd& encoder_input, const MatrixXd& decoder_input) {
+    mha_cross->set_encoder_output(encoder_input);
+    MatrixXd output = decoder_input;
+    for (Layer* layer : layers) {
+        output = layer->infer(output);
+    }
+    return output;
+}
+
 const MatrixXd& Decoder::get_output() const {
     return output;
 }
