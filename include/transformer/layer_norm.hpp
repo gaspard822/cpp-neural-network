@@ -29,6 +29,9 @@ class LayerNorm: public Layer {
         string get_layer_name() const override;
         string get_activation_name() const override;
         LayerType get_type() const override;
+
+        void save(ofstream& file) const override;
+        void load(ifstream& file) override;
 };
 
 #endif

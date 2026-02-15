@@ -97,6 +97,20 @@ class Layer {
          * @return LayerType Enum value corresponding to the layer type
          */
         virtual LayerType get_type() const = 0;
+
+        /**
+         * Saves the layer's weights and hyperparameters to a stream.
+         * @param file Stream to which we save the layer
+         */
+        virtual void save(ofstream& file) const = 0;
+
+        /**
+         * Loads the layer's weights and hyperparameters from a stream.
+         * @param file Stream from which to load the layer
+         */
+        virtual void load(ifstream& file) = 0;
+
+        
 };
 
 #endif

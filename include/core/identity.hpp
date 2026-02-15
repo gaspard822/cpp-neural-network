@@ -28,6 +28,12 @@ class Identity : public ActivationFunction {
          * @return ActivationType Enum value for identity
          */
         ActivationType get_type() const override;
+
+        /**
+         * Returns the name of the activation function.
+         * @return string Activation name
+         */
+        string get_activation_name() const override;
 };
 
 #endif

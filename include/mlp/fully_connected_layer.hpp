@@ -100,6 +100,9 @@ class FullyConnectedLayer : public Layer {
         void set_running_mean(RowVectorXd new_mean);
         void set_running_variance(RowVectorXd new_mean);
         void set_inv_sqrt_var_plus_epsilon(RowVectorXd new_inv_sqrt_var_plus_epsilon);
+
+        void save(ofstream& file) const override;
+        void load(ifstream& file) override;
 };
 
 #endif

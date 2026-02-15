@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 
 using namespace Eigen;
+using namespace std;
 
 enum class ActivationType {
     RELU,
@@ -37,6 +38,12 @@ class ActivationFunction {
          * @return ActivationType Enum value corresponding to the function type
          */
         virtual ActivationType get_type() const = 0;
+
+        /**
+         * Returns the name of the activation function.
+         * @return string Activation name
+         */
+        virtual string get_activation_name() const = 0;
 };
 
 #endif

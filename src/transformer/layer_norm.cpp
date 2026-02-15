@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "transformer/layer_norm.hpp"
 
 
@@ -65,4 +66,25 @@ string LayerNorm::get_activation_name() const {
 
 LayerType LayerNorm::get_type() const {
     return LayerType::LAYER_NORM;
+}
+
+void LayerNorm::save(ofstream& file) const {
+    file << get_layer_name() << "\n";
+    file << seq << " " << d_model << "\n";
+    file << gamma << "\n";
+    file << beta << "\n";
+}
+
+void LayerNorm::load(ifstream& file) {
+    string layer_name;
+    file >> layer_name;
+    if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
+
+    file >> seq >> d_model;
+    for (int i = 0; i < d_model; i++) {
+        file >> gamma(i);
+    }
+    for (int i = 0; i < d_model; i++) {
+        file >> beta(i);
+    }
 }

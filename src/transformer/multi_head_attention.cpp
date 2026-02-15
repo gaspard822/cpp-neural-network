@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "transformer/multi_head_attention.hpp"
 
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
@@ -70,6 +71,7 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
             M.triangularView<Lower>().setZero();
             softmaxJ[i] += M;
         }
+        // cout << "softmaxJ[i]: " << softmaxJ[i].rows() << "," << softmaxJ[i].cols() << endl;
         VectorXd J_i_max = softmaxJ[i].rowwise().maxCoeff();
         softmaxJ[i] = softmaxJ[i] - J_i_max.replicate(1, num_kv_tokens);
         softmaxJ[i] = softmaxJ[i].array().exp();
@@ -195,7 +197,9 @@ const MatrixXd& MultiHeadAttention::get_d_encoder_output() const {
 }
 
 string MultiHeadAttention::get_layer_name() const {
-    return "MultiHeadAttention";
+    if (mode == AttentionMode::ENCODER_SELF) return "MultiHeadAttentionSelf";
+    if (mode == AttentionMode::DECODER_MASKED_SELF) return "MultiHeadAttentionMasked";
+    return "MultiHeadAttentionCross";
 }
 
 string MultiHeadAttention::get_activation_name() const {
@@ -216,4 +220,45 @@ bool MultiHeadAttention::is_cross_attention() const {
 
 bool MultiHeadAttention::is_masked_attention() const {
     return mode == AttentionMode::DECODER_MASKED_SELF;
+}
+
+void MultiHeadAttention::save(ofstream& file) const {
+    file << get_layer_name() << "\n";
+    file << seq << " " << d_model << " " << h << " " << d_k << " " << d_v << "\n";
+    for (int i = 0; i < h; i++) {
+        file << WQ[i] << "\n";
+        file << WK[i] << "\n";
+        file << WV[i] << "\n";
+        file << WO[i] << "\n";
+    }
+}
+
+void MultiHeadAttention::load(ifstream& file) {
+    string layer_name;
+    file >> layer_name;
+    if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
+
+    file >> seq >> d_model >> h >> d_k >> d_v;
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < d_model; j++) {
+            for (int k = 0; k < d_k; k++) {
+                file >> WQ[i](j, k);
+            }
+        }
+        for (int j = 0; j < d_model; j++) {
+            for (int k = 0; k < d_k; k++) {
+                file >> WK[i](j, k);
+            }
+        }
+        for (int j = 0; j < d_model; j++) {
+            for (int k = 0; k < d_v; k++) {
+                file >> WV[i](j, k);
+            }
+        }
+        for (int j = 0; j < d_v; j++) {
+            for (int k = 0; k < d_model; k++) {
+                file >> WO[i](j, k);
+            }
+        }
+    }
 }

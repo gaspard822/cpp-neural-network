@@ -4,7 +4,7 @@
 #include "core/relu.hpp"
 #include "core/cross_entropy_loss.hpp"
 #include "core/adam_optimizer.hpp"
-#include "transformer/tokenizer.hpp"
+#include "transformer/bpe_tokenizer.hpp"
 
 struct DatasetSplit {
     vector<vector<int>> en_train;
@@ -17,7 +17,7 @@ struct DatasetSplit {
     vector<vector<int>> fr_test;
 };
 
-void test_tokenizer(Tokenizer* tokenizer) {
+void test_tokenizer(BPETokenizer* tokenizer) {
     const string sentence = "Hello, my name is Benoît";
     vector<int> encoding = tokenizer->encode(sentence);
     string decoding = tokenizer->decode(encoding);
@@ -62,11 +62,9 @@ static inline pair<string, string> parse_csv_line_two_columns(const string& line
     return {col1, col2};
 }
 
-pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv(const string& csv_path, Tokenizer& tokenizer, int max_num_sentences, int max_len_sentences) {
+pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv(const string& csv_path, BPETokenizer& tokenizer, int max_num_sentences, int max_len_sentences) {
     ifstream in(csv_path, ios::binary);
-    if (!in) {
-        throw runtime_error("Can not open CSV file: " + csv_path);
-    }
+    if (!in) throw runtime_error("Can not open CSV file: " + csv_path);
 
     // Skip the header
     string header;
@@ -82,9 +80,10 @@ pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv
 
         auto [en_text, fr_text] = parse_csv_line_two_columns(line);
 
-        vector<int> en_encoding = tokenizer.encode(en_text);
-        vector<int> fr_encoding = tokenizer.encode(fr_text);
+        vector<int> en_encoding = tokenizer.encode(en_text, true, true);
+        vector<int> fr_encoding = tokenizer.encode(fr_text, true, true);
         if ((en_encoding.size() > max_len_sentences) || (fr_encoding.size() > max_len_sentences)) continue;
+        if ((en_encoding.size() < 5) || (fr_encoding.size() < 5)) continue;
         en_sentences.push_back(en_encoding);
         fr_sentences.push_back(fr_encoding);
 
@@ -121,20 +120,86 @@ DatasetSplit split_dataset(const vector<vector<int>>& en_tokens, const vector<ve
     return split;
 }
 
+pair<vector<string>, vector<string>> load_sentences(const string& csv_path, int max_num_sentences, int max_len_sentences) {
+    ifstream in(csv_path, ios::binary);
+    if (!in) {
+        throw runtime_error("Can not open CSV file: " + csv_path);
+    }
+
+    // Skip the header
+    string header;
+    getline(in, header);
+
+    vector<string> en_sentences;
+    vector<string> fr_sentences;
+
+    string line;
+    int num_encoded_sentences = 0;
+    while (getline(in, line) && (num_encoded_sentences < max_num_sentences)) {
+        if (line.empty()) continue;
+
+        auto [en_text, fr_text] = parse_csv_line_two_columns(line);
+
+        if ((en_text.size() > max_len_sentences) || (fr_text.size() > max_len_sentences)) continue;
+        en_sentences.push_back(en_text);
+        fr_sentences.push_back(fr_text);
+
+        num_encoded_sentences++;
+        if (num_encoded_sentences % 100000 == 0) {
+            cout << "Encoded " << num_encoded_sentences << " rows" << endl;
+        }
+    }
+
+    if (en_sentences.size() != fr_sentences.size()) {
+        throw runtime_error("English/French sentence count mismatch");
+    }
+
+    return {en_sentences, fr_sentences};
+}
+
+void test_bpe_tokenizer() {
+    vector<string> corpus;
+    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, 128);
+    corpus.reserve(en_sentences.size() + fr_sentences.size());
+    for (auto& s : en_sentences) corpus.push_back(s);
+    for (auto& s : fr_sentences) corpus.push_back(s);
+
+    BPETokenizer tok;
+    tok.train(corpus, 2000);
+
+    auto ids = tok.encode("Hello world", true, true);
+    cout << "Encoding: " << endl;
+    for (auto id: ids) {
+        cout << id << ", ";
+    }
+    cout << endl;
+    auto text = tok.decode(ids);
+    cout << "Decoding: " << text << endl;
+}
+
 void train_test_translation() {
+    // test_bpe_tokenizer();
+    // return;
     const string path_to_text = "../translation/en-fr-shuffled.csv";
-    int num_encoder_layers = 2;
-    int num_decoder_layers = 2;
+    int num_encoder_layers = 3;
+    int num_decoder_layers = 3;
     int seq = 128;
-    int d_model = 64;
+    int d_model = 128;
     int h = 4;
-    Tokenizer* tokenizer = new Tokenizer(path_to_text, 100000);
+    BPETokenizer* tokenizer = new BPETokenizer;
+    vector<string> corpus;
+    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, 128);
+    corpus.reserve(en_sentences.size() + fr_sentences.size());
+    for (auto& s : en_sentences) corpus.push_back(s);
+    for (auto& s : fr_sentences) corpus.push_back(s);
+    tokenizer->train(corpus, 500);
+
     // test_tokenizer(tokenizer);
     ActivationFunction* activation = new Relu();
     CrossEntropy* cross_entropy_loss = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
-    int N = 10000;
+    int N = 1000;
     double train_size = 0.8;
     double val_size = 0.1;
     auto [en_tokens, fr_tokens] = load_tokenized_sentences_from_csv(path_to_text, *tokenizer, N, seq);
@@ -142,7 +207,14 @@ void train_test_translation() {
 
     TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
     transformer_network->get_optimizer()->update_optimizer();
-    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, 10, 32);
+    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, 3, 256);
+    transformer_network->save_model("../transformer_models/test_long_training.txt");
     
     transformer_network->infer(data.en_test, tokenizer, "../translation/output.csv");
+    // TransformerNetwork* loaded_transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
+    // cout << "Loading the model" << endl;
+    // transformer_network->load_model("../tansformer_models/test_long_training_16_09.txt");
+    // vector<int> sentence_tokens = tokenizer->encode("in january 1996, government accepted claim for negotiation while inquiry underway.");
+    // vector<int> decoder_tokens = {0};
+    // cout << transformer_network->forward(sentence_tokens, decoder_tokens);
 }

@@ -1,5 +1,9 @@
 #include <iostream>
+#include <fstream>
 #include "transformer/encoder.hpp"
+#include "core/relu.hpp"
+#include "core/sigmoid.hpp"
+#include "core/identity.hpp"
 
 Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
     seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), d_ff(d_ff), activation(activation) {
@@ -52,4 +56,36 @@ const MatrixXd& Encoder::get_d_input() const {
 
 const vector<Layer*>& Encoder::get_layers() {
     return layers;
+}
+
+void Encoder::save(ofstream& file) const {
+    file << "Encoder\n";
+    file << seq << " " << d_model << " " << h << " " <<  d_k << " " << d_v << " " << d_ff << "\n";
+    file << activation->get_activation_name() << "\n";
+    for (Layer* layer: layers) {
+        layer->save(file);
+    }
+}
+
+void Encoder::load(ifstream& file) {
+    string block_type;
+    file >> block_type;
+    if (block_type != "Encoder") throw runtime_error("Wrong layer was given. Got " + block_type + ", expected Encoder");
+
+    file >> seq >> d_model >> h >> d_k >> d_v >> d_ff;
+    string activation_name;
+    file >> activation_name;
+    if (activation_name == "Relu") {
+        activation = new Relu();
+    } else if (activation_name == "Sigmoid") {
+        activation = new Sigmoid();
+    } else if (activation_name == "Identity") {
+        activation = new Identity();
+    } else {
+        throw runtime_error("Couldn't read the type of the activation function. Got " + activation_name);
+    }
+
+    for (Layer* layer: layers) {
+        layer->load(file);
+    }
 }

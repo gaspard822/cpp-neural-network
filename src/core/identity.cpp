@@ -13,3 +13,7 @@ MatrixXd Identity::derivative(const MatrixXd& z) const {
 ActivationType Identity::get_type() const {
     return ActivationType::IDENTITY;
 }
+
+string Identity::get_activation_name() const {
+    return "Identity";
+}

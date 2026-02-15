@@ -43,6 +43,9 @@ class MultiHeadAttention : public Layer {
         AttentionMode get_mode() const;
         bool is_cross_attention() const;
         bool is_masked_attention() const;
+
+        void save(ofstream& file) const override;
+        void load(ifstream& file) override;
 };
 
 #endif

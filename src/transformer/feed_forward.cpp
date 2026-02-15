@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "transformer/feed_forward.hpp"
 
 FeedForward::FeedForward(ActivationFunction* activation,
@@ -75,4 +76,37 @@ string FeedForward::get_activation_name() const {
 
 LayerType FeedForward::get_type() const {
     return LayerType::FEED_FORWARD;
+}
+
+void FeedForward::save(ofstream& file) const {
+    file << get_layer_name() << "\n";
+    file << seq << " " << d_model << " " << d_ff << "\n";
+    file << W1 << "\n";
+    file << b1 << "\n";
+    file << W2 << "\n";
+    file << b2 << "\n";
+}
+
+void FeedForward::load(ifstream& file) {
+    string layer_name;
+    file >> layer_name;
+    if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
+
+    file >> seq >> d_model >> d_ff;
+    for (int i = 0; i < d_model; i++) {
+        for (int j = 0; j < d_ff; j++) {
+            file >> W1(i, j);
+        }
+    }
+    for (int i = 0; i < d_ff; i++) {
+        file >> b1(i);
+    }
+    for (int i = 0; i < d_ff; i++) {
+        for (int j = 0; j < d_model; j++) {
+            file >> W2(i, j);
+        }
+    }
+    for (int i = 0; i < d_model; i++) {
+        file >> b2(i);
+    }
 }

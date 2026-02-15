@@ -14,3 +14,7 @@ MatrixXd Relu::derivative(const MatrixXd& z) const {
 ActivationType Relu::get_type() const {
     return ActivationType::RELU;
 }
+
+string Relu::get_activation_name() const {
+    return "Relu";
+}

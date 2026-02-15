@@ -20,6 +20,9 @@ class Encoder {
         const MatrixXd& get_output() const;
         const MatrixXd& get_d_input() const;
         const vector<Layer*>& get_layers();
+
+        void save(ofstream& file) const;
+        void load(ifstream& file);
 };
 
 #endif

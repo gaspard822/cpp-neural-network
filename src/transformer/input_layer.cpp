@@ -2,13 +2,13 @@
 #include <fstream>
 #include <array>
 #include "transformer/input_layer.hpp"
-#include "transformer/tokenizer.hpp"
+#include "transformer/bpe_tokenizer.hpp"
 
 InputLayer::InputLayer(int seq, int d_model, int vocab_size) : seq(seq), d_model(d_model), vocab_size(vocab_size) {
     // Initialize the embeddings matrix
     double limit = sqrt(6.0 / (vocab_size + d_model));
     embeddings = MatrixXd::Random(vocab_size, d_model) * limit;
-    embeddings.row(Tokenizer::PAD_ID).setZero();
+    embeddings.row(BPETokenizer::PAD_ID).setZero();
     d_embeddings = MatrixXd::Zero(vocab_size, d_model);
     positional_encodings = compute_positional_encodings(seq, d_model);
     params = {TrainableParameter(embeddings, d_embeddings)};
@@ -48,7 +48,7 @@ void InputLayer::backward(const MatrixXd& d_output) {
     for (int i = 0; i < num_tokens; i++) {
         d_embeddings.row(token_ids[i]) += d_output.row(i);
     }
-    d_embeddings.row(Tokenizer::PAD_ID).setZero();
+    d_embeddings.row(BPETokenizer::PAD_ID).setZero();
 }
 
 MatrixXd InputLayer::infer(const MatrixXd& layer_input) const {
@@ -87,4 +87,29 @@ string InputLayer::get_activation_name() const {
 
 LayerType InputLayer::get_type() const {
     return LayerType::INPUT_LAYER;
+}
+
+void InputLayer::save(ofstream& file) const {
+    file << get_layer_name() << "\n";
+    file << seq << " " << d_model << " " << vocab_size << "\n";
+    file << embeddings << "\n";
+    file << positional_encodings << "\n";
+}
+
+void InputLayer::load(ifstream& file) {
+    string layer_name;
+    file >> layer_name;
+    if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
+
+    file >> seq >> d_model >> vocab_size;
+    for (int i = 0; i < vocab_size; i++) {
+        for (int j = 0; j < d_model; j++) {
+            file >> embeddings(i, j);
+        }
+    }
+    for (int i = 0; i < seq; i++) {
+        for (int j = 0; j < d_model; j++) {
+            file >> positional_encodings(i, j);
+        }
+    }
 }

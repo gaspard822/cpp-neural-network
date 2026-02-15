@@ -15,3 +15,7 @@ MatrixXd Sigmoid::derivative(const MatrixXd& z) const {
 ActivationType Sigmoid::get_type() const {
     return ActivationType::SIGMOID;
 }
+
+string Sigmoid::get_activation_name() const {
+    return "Sigmoid";
+}

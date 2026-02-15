@@ -24,6 +24,7 @@ set(SOURCES
     src/core/vanilla_sgd_optimizer.cpp
     src/mlp/fully_connected_layer.cpp
     src/mlp/neural_network.cpp
+    src/transformer/bpe_tokenizer.cpp
     src/transformer/decoder.cpp
     src/transformer/encoder.cpp
     src/transformer/feed_forward.cpp
@@ -31,7 +32,6 @@ set(SOURCES
     src/transformer/layer_norm.cpp
     src/transformer/linear_layer.cpp
     src/transformer/multi_head_attention.cpp
-    src/transformer/tokenizer.cpp
     src/transformer/transformer.cpp
 )
 

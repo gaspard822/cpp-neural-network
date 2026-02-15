@@ -27,6 +27,12 @@ class Relu : public ActivationFunction {
          * @return ActivationType Enum value for ReLU
          */
         ActivationType get_type() const override;
+
+        /**
+         * Returns the name of the activation function.
+         * @return string Activation name
+         */
+        string get_activation_name() const override;
 };
 
 #endif

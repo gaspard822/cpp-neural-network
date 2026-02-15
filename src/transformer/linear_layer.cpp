@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "transformer/linear_layer.hpp"
 
 LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_size(vocab_size) {
@@ -54,4 +55,27 @@ string LinearLayer::get_activation_name() const {
 
 LayerType LinearLayer::get_type() const {
     return LayerType::LINEAR_LAYER;
+}
+
+void LinearLayer::save(ofstream& file) const {
+    file << get_layer_name() << "\n";
+    file << d_model << " " << vocab_size << "\n";
+    file << W << "\n";
+    file << b << "\n";
+}
+
+void LinearLayer::load(ifstream& file) {
+    string layer_name;
+    file >> layer_name;
+    if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
+
+    file >> d_model >> vocab_size;
+    for (int i = 0; i < d_model; i++) {
+        for (int j = 0; j < vocab_size; j++) {
+            file >> W(i, j);
+        }
+    }
+    for (int i = 0; i < vocab_size; i++) {
+        file >> b(i);
+    }
 }

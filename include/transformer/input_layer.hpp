@@ -34,8 +34,8 @@ class InputLayer: Layer {
         string get_activation_name() const override;
         LayerType get_type() const override;
 
-        // void save(const string& path) const;
-        // InputLayer* load(const string& path) const;
+        void save(ofstream& file) const override;
+        void load(ifstream& file) override;
 };
 
 #endif

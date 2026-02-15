@@ -192,3 +192,11 @@ string FullyConnectedLayer::get_activation_name() const {
 LayerType FullyConnectedLayer::get_type() const {
     return LayerType::FULLY_CONNECTED_LAYER;
 }
+
+void FullyConnectedLayer::save(ofstream& file) const {
+    // TODO
+}
+
+void FullyConnectedLayer::load(ifstream& file) {
+    // TODO
+}
