@@ -7,3 +7,4 @@ models/*
 !models/final_model.txt
 translation/
 LLMs.pdf
+transformer_models/
