@@ -10,7 +10,7 @@ class Decoder {
         int seq, d_model, h, d_k, d_v, d_ff;
         MultiHeadAttention* mha_cross;
         vector<Layer*> layers;
-        MatrixXd output, d_input, d_encoder_input;
+        MatrixXd d_encoder_input;
         ActivationFunction* activation;
         
     public:

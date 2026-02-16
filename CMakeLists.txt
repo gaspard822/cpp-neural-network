@@ -11,6 +11,17 @@ find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(include)
 
+# OpenMP for parallel matrix operations
+if(APPLE)
+    set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include")
+    set(OpenMP_C_LIB_NAMES "omp")
+    set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include")
+    set(OpenMP_CXX_LIB_NAMES "omp")
+    set(OpenMP_omp_LIBRARY "/opt/homebrew/opt/libomp/lib/libomp.dylib")
+endif()
+
+find_package(OpenMP REQUIRED)
+
 set(SOURCES
     src/main.cpp
     src/core/adam_optimizer.cpp
@@ -36,3 +47,6 @@ set(SOURCES
 )
 
 add_executable(basic_nn ${SOURCES})
+
+target_link_libraries(basic_nn PRIVATE OpenMP::OpenMP_CXX)
+target_compile_definitions(basic_nn PRIVATE EIGEN_USE_THREADS)

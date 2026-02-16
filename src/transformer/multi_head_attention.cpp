@@ -43,6 +43,16 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
 
     softmaxJ.resize(h);
     head.resize(h);
+
+    if (is_masked_attention()) {
+        // Forward mask: upper triangle filled with -1e15, lower triangle is 0
+        forward_mask = MatrixXd::Constant(seq, seq, -1e15);
+        forward_mask.triangularView<Lower>().setZero();
+
+        // Backward mask: lower triangle filled with 1, upper triangle is 0
+        backward_mask = MatrixXd::Zero(seq, seq);
+        backward_mask.triangularView<Lower>().setOnes();
+    }
 }
 
 void MultiHeadAttention::forward(const MatrixXd& input) {
@@ -55,6 +65,7 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         num_kv_tokens = encoder_output.rows();
     }
     X = input;
+    output = MatrixXd::Zero(num_q_tokens, d_model);
     for (int i = 0; i < h; i++) {
         Q[i] = input * WQ[i];
         if (!is_cross_attention()) {
@@ -67,9 +78,7 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         }
         softmaxJ[i] = (Q[i] * K[i].transpose()).array() * (1/sqrt(d_k));
         if (is_masked_attention()) {
-            MatrixXd M = MatrixXd::Constant(num_q_tokens, num_kv_tokens, -1e15);
-            M.triangularView<Lower>().setZero();
-            softmaxJ[i] += M;
+            softmaxJ[i] += forward_mask.topLeftCorner(num_q_tokens, num_kv_tokens);
         }
         // cout << "softmaxJ[i]: " << softmaxJ[i].rows() << "," << softmaxJ[i].cols() << endl;
         VectorXd J_i_max = softmaxJ[i].rowwise().maxCoeff();
@@ -77,10 +86,7 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         softmaxJ[i] = softmaxJ[i].array().exp();
         VectorXd shifted_softmaxJi_exp_sum = softmaxJ[i].rowwise().sum();
         softmaxJ[i] = softmaxJ[i].array().colwise() / shifted_softmaxJi_exp_sum.array();
-    }
 
-    output = MatrixXd::Zero(num_q_tokens, d_model);
-    for (int i = 0; i < h; i++) {
         head[i] = softmaxJ[i] * V[i];
         output += head[i] * WO[i];
     }
@@ -106,15 +112,13 @@ void MultiHeadAttention::backward(const MatrixXd& d_output) {
         MatrixXd d_J = softmaxJ[i].array() * (d_softmaxJ.array().colwise() - row_dot.array());
         
         if (is_masked_attention()) {
-            MatrixXd M = MatrixXd::Zero(num_q_tokens, num_kv_tokens);
-            M.triangularView<Lower>().setOnes();
-            d_J.array() *= M.array();
+            d_J.array() *= backward_mask.topLeftCorner(num_q_tokens, num_kv_tokens).array();
         }
 
         MatrixXd d_V = softmaxJ[i].transpose() * d_head;
         MatrixXd d_K = (d_J.transpose() * Q[i]).array() * (1/sqrt(d_k));
         MatrixXd d_Q = (d_J * K[i]).array() * (1/sqrt(d_k));
-        d_WQ[i] = X.transpose() * d_Q;
+        d_WQ[i] += X.transpose() * d_Q;
         if (!is_cross_attention()) {
             d_WK[i] += X.transpose() * d_K;
             d_WV[i] += X.transpose() * d_V;
@@ -143,6 +147,7 @@ MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
     K_tmp.resize(h);
     V_tmp.resize(h);
     softmaxJ_tmp.resize(h);
+    MatrixXd output_tmp = MatrixXd::Zero(num_q_tokens, d_model);
     for (int i = 0; i < h; i++) {
         Q_tmp[i] = input * WQ[i];
         if (!is_cross_attention()) {
@@ -155,19 +160,14 @@ MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
         }
         softmaxJ_tmp[i] = (Q_tmp[i] * K_tmp[i].transpose()).array() * (1/sqrt(d_k));
         if (is_masked_attention()) {
-            MatrixXd M = MatrixXd::Constant(num_q_tokens, num_kv_tokens, -1e15);
-            M.triangularView<Lower>().setZero();
-            softmaxJ_tmp[i] += M;
+            softmaxJ_tmp[i] += forward_mask.topLeftCorner(num_q_tokens, num_kv_tokens);
         }
         VectorXd J_i_max = softmaxJ_tmp[i].rowwise().maxCoeff();
         softmaxJ_tmp[i] = softmaxJ_tmp[i] - J_i_max.replicate(1, num_kv_tokens);
         softmaxJ_tmp[i] = softmaxJ_tmp[i].array().exp();
         VectorXd shifted_softmaxJi_exp_sum = softmaxJ_tmp[i].rowwise().sum();
         softmaxJ_tmp[i] = softmaxJ_tmp[i].array().colwise() / shifted_softmaxJi_exp_sum.array();
-    }
 
-    MatrixXd output_tmp = MatrixXd::Zero(num_q_tokens, d_model);
-    for (int i = 0; i < h; i++) {
         output_tmp += (softmaxJ_tmp[i] * V_tmp[i]) * WO[i];
     }
 

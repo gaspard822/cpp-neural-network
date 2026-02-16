@@ -4,11 +4,7 @@
 #include "transformer/transformer.hpp"
 #include "transformer/bpe_tokenizer.hpp"
 
-TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
-                                       ActivationFunction* activation, CrossEntropy* cross_entropy_loss, Optimizer* optimizer) :
-        num_encoder_layers(num_encoder_layers), num_decoder_layers(num_decoder_layers), seq(seq), d_model(d_model), h(h),
-        vocab_size(vocab_size), activation(activation), cross_entropy_loss(cross_entropy_loss), optimizer(optimizer) {
-    
+void TransformerNetwork::init_layers() {
     d_k = d_v = d_model / h;
     d_ff = 4 * d_model;
 
@@ -31,7 +27,35 @@ TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_l
     linear_layer = new LinearLayer(d_model, vocab_size);
     layers.push_back((Layer*) linear_layer);
 
+    cross_entropy_loss = new CrossEntropy();
     optimizer->set_network(this);
+}
+
+TransformerNetwork::TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
+                                       ActivationFunction* activation, Optimizer* optimizer):
+        num_encoder_layers(num_encoder_layers), num_decoder_layers(num_decoder_layers), seq(seq), d_model(d_model), h(h),
+        vocab_size(vocab_size), activation(activation), optimizer(optimizer) {
+
+    init_layers();
+}
+
+TransformerNetwork::TransformerNetwork(const string& path, ActivationFunction* activation, Optimizer* optimizer) {
+    // Read architecture parameters from file
+    ifstream file(path);
+    if (!file) throw runtime_error("Can not open file: " + path);
+
+    file >> num_encoder_layers >> num_decoder_layers >> seq >> d_model >> h >> vocab_size;
+    file.close();
+
+    // Set activation and optimizer
+    this->activation = activation;
+    this->optimizer = optimizer;
+
+    // Create all layers
+    init_layers();
+
+    // Load weights from file
+    load_model(path);
 }
 
 TransformerNetwork::~TransformerNetwork() {

@@ -31,10 +31,15 @@ class TransformerNetwork : public Network {
         LinearLayer* linear_layer;
 
         vector<Layer*> layers;
-        
+
+        // Private helper to initialize layers (called by both constructors)
+        void init_layers();
+
     public:
         TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
-                    ActivationFunction* activation, CrossEntropy* cross_entropy_loss, Optimizer* optimizer);
+                    ActivationFunction* activation, Optimizer* optimizer);
+
+        TransformerNetwork(const string& path, ActivationFunction* activation, Optimizer* optimizer);
 
         ~TransformerNetwork();
 

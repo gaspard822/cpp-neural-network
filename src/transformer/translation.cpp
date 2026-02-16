@@ -184,30 +184,37 @@ void train_test_translation() {
     int num_encoder_layers = 3;
     int num_decoder_layers = 3;
     int seq = 128;
-    int d_model = 128;
+    int d_model = 256;
     int h = 4;
+    int vocab_size = 10000;
+    int num_epochs = 1;
+    int batch_size = 1024;
+
     BPETokenizer* tokenizer = new BPETokenizer;
     vector<string> corpus;
-    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, 128);
+    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, seq);
     corpus.reserve(en_sentences.size() + fr_sentences.size());
-    for (auto& s : en_sentences) corpus.push_back(s);
-    for (auto& s : fr_sentences) corpus.push_back(s);
-    tokenizer->train(corpus, 500);
+    for (auto& en_sentence : en_sentences) corpus.push_back(en_sentence);
+    for (auto& fr_sentence: fr_sentences) corpus.push_back(fr_sentence);
+    tokenizer->train(corpus, vocab_size);
 
     // test_tokenizer(tokenizer);
     ActivationFunction* activation = new Relu();
-    CrossEntropy* cross_entropy_loss = new CrossEntropy();
     Optimizer* optimizer = new AdamOptimizer(nullptr);
 
-    int N = 1000;
+    int N = 100000;
     double train_size = 0.8;
     double val_size = 0.1;
     auto [en_tokens, fr_tokens] = load_tokenized_sentences_from_csv(path_to_text, *tokenizer, N, seq);
     DatasetSplit data = split_dataset(en_tokens, fr_tokens, train_size, val_size);
 
-    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
+    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, optimizer);
     transformer_network->get_optimizer()->update_optimizer();
-    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, 3, 256);
+    chrono::time_point<chrono::high_resolution_clock> start, end;
+    start = chrono::high_resolution_clock::now();
+    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, num_epochs, batch_size);
+    end = chrono::high_resolution_clock::now();
+    cout << "N=" << N << " ; num_epochs=" << num_epochs << " ; batch_size=" << batch_size << " ; vocab_size=" << vocab_size << ": Took " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
     transformer_network->save_model("../transformer_models/test_long_training.txt");
     
     transformer_network->infer(data.en_test, tokenizer, "../translation/output.csv");

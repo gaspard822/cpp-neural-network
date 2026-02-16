@@ -20,6 +20,10 @@ class MultiHeadAttention : public Layer {
         vector<TrainableParameter> params;
         int seq, d_model, h, d_k, d_v;
 
+        // Pre-computed masks for masked attention
+        MatrixXd forward_mask;
+        MatrixXd backward_mask;
+
     public:
         MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode);
 

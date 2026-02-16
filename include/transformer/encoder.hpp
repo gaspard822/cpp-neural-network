@@ -9,7 +9,6 @@ class Encoder {
     private:
         int seq, d_model, h, d_k, d_v, d_ff;
         vector<Layer*> layers;
-        MatrixXd output, d_input;
         ActivationFunction* activation;
         
     public:

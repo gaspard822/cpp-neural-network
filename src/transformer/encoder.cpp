@@ -25,7 +25,6 @@ void Encoder::forward(const MatrixXd& input) {
         layer->forward(*layer_output);
         layer_output = &layer->get_output();
     }
-    output = *layer_output;
 }
 
 void Encoder::backward(const MatrixXd& d_output) {
@@ -35,7 +34,6 @@ void Encoder::backward(const MatrixXd& d_output) {
         layers[i]->backward(*layer_d_input);
         layer_d_input = &layers[i]->get_d_input();
     }
-    d_input = *layer_d_input;
 }
 
 MatrixXd Encoder::infer(const MatrixXd& input) {
@@ -47,11 +45,11 @@ MatrixXd Encoder::infer(const MatrixXd& input) {
 }
 
 const MatrixXd& Encoder::get_output() const {
-    return output;
+    return layers.back()->get_output();
 }
 
 const MatrixXd& Encoder::get_d_input() const {
-    return d_input;
+    return layers.front()->get_d_input();
 }
 
 const vector<Layer*>& Encoder::get_layers() {
