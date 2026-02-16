@@ -249,7 +249,7 @@ void TransformerNetwork::save_model(const string& path) const {
     ofstream file(path);
     if (!file.is_open()) throw runtime_error("Could not open the file");
     file.good();
-    // file << setprecision(numeric_limits<double>::max_digits10);
+    file << setprecision(numeric_limits<double>::max_digits10);
     file << num_encoder_layers << " " << num_decoder_layers << " " << seq << " " << d_model << " " << h << " " << vocab_size << "\n";
     encoder_input_layer->save(file);
     for (Encoder* encoder: encoders) {

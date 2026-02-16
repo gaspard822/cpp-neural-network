@@ -32,9 +32,6 @@ class TransformerNetwork : public Network {
 
         vector<Layer*> layers;
 
-        // Private helper to initialize layers (called by both constructors)
-        void init_layers();
-
     public:
         TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
                     ActivationFunction* activation, Optimizer* optimizer);
@@ -42,6 +39,9 @@ class TransformerNetwork : public Network {
         TransformerNetwork(const string& path, ActivationFunction* activation, Optimizer* optimizer);
 
         ~TransformerNetwork();
+
+        // Private helper to initialize layers (called by both constructors)
+        void init_layers();
 
         const MatrixXd& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
         void backward(const vector<int>& y_true, const MatrixXd& y_pred);

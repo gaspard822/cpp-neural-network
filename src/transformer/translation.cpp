@@ -6,6 +6,35 @@
 #include "core/adam_optimizer.hpp"
 #include "transformer/bpe_tokenizer.hpp"
 
+struct TrainingConfig {
+    // Model architecture
+    int num_encoder_layers = 3;
+    int num_decoder_layers = 3;
+    int seq = 256;
+    int d_model = 256;
+    int h = 4;
+    int vocab_size = 10000;
+
+    // Training hyperparameters
+    int num_epochs = 1;
+    int batch_size = 1024;
+    double learning_rate = 0.001;
+    double beta1 = 0.9;
+    double beta2 = 0.999;
+
+    // Dataset parameters
+    int N = 100000;  // Number of sentence pairs to use (max 183,251 available)
+    double train_size = 0.8;
+    double val_size = 0.1;
+
+    // Paths - parallel text files
+    string en_data_path = "../translation/news-commentary-v9.fr-en.en";
+    string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
+    string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
+    string model_path = "../transformer_models/saved_model.txt";
+    string output_path = "../translation/output.csv";
+};
+
 struct DatasetSplit {
     vector<vector<int>> en_train;
     vector<vector<int>> fr_train;
@@ -17,79 +46,35 @@ struct DatasetSplit {
     vector<vector<int>> fr_test;
 };
 
-void test_tokenizer(BPETokenizer* tokenizer) {
-    const string sentence = "Hello, my name is Benoît";
-    vector<int> encoding = tokenizer->encode(sentence);
-    string decoding = tokenizer->decode(encoding);
-    cout << "Sentence: " << sentence << endl;
-    cout << "Encoding: ";
-    for (auto it = encoding.begin(); it != encoding.end(); it++) {
-        cout << *it << ", ";
-    }
-    cout << endl;
-    cout << "Decoding: " << decoding << endl;
-}
+pair<vector<string>, vector<string>> load_sentences_from_parallel_files(
+    const string& en_path, const string& fr_path,
+    int max_num_sentences, int max_len_sentences) {
 
-static inline pair<string, string> parse_csv_line_two_columns(const string& line) {
-    string col1, col2;
-    string* current = &col1;
+    ifstream en_file(en_path);
+    ifstream fr_file(fr_path);
 
-    bool in_quotes = false;
+    if (!en_file) throw runtime_error("Cannot open English file: " + en_path);
+    if (!fr_file) throw runtime_error("Cannot open French file: " + fr_path);
 
-    for (size_t i = 0; i < line.size(); ++i) {
-        char c = line[i];
+    vector<string> en_sentences;
+    vector<string> fr_sentences;
 
-        if (c == '"') {
-            in_quotes = !in_quotes;
-            continue; // do not include quotes themselves
-        }
+    string en_line, fr_line;
+    int count = 0;
 
-        if (c == ',' && !in_quotes) {
-            if (current == &col2) {
-                throw runtime_error("CSV line has more than two columns");
-            }
-            current = &col2;
-            continue;
-        }
+    while (getline(en_file, en_line) && getline(fr_file, fr_line) && count < max_num_sentences) {
+        // Skip empty lines
+        if (en_line.empty() || fr_line.empty()) continue;
 
-        current->push_back(c);
-    }
+        // Filter by length
+        if (en_line.size() > max_len_sentences || fr_line.size() > max_len_sentences) continue;
 
-    if (current != &col2) {
-        throw runtime_error("CSV line does not have two columns");
-    }
+        en_sentences.push_back(en_line);
+        fr_sentences.push_back(fr_line);
+        count++;
 
-    return {col1, col2};
-}
-
-pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv(const string& csv_path, BPETokenizer& tokenizer, int max_num_sentences, int max_len_sentences) {
-    ifstream in(csv_path, ios::binary);
-    if (!in) throw runtime_error("Can not open CSV file: " + csv_path);
-
-    // Skip the header
-    string header;
-    getline(in, header);
-
-    vector<vector<int>> en_sentences;
-    vector<vector<int>> fr_sentences;
-
-    string line;
-    int num_encoded_sentences = 0;
-    while (getline(in, line) && (num_encoded_sentences < max_num_sentences)) {
-        if (line.empty()) continue;
-
-        auto [en_text, fr_text] = parse_csv_line_two_columns(line);
-
-        vector<int> en_encoding = tokenizer.encode(en_text, true, true);
-        vector<int> fr_encoding = tokenizer.encode(fr_text, true, true);
-        if ((en_encoding.size() > max_len_sentences) || (fr_encoding.size() > max_len_sentences)) continue;
-        if ((en_encoding.size() < 5) || (fr_encoding.size() < 5)) continue;
-        en_sentences.push_back(en_encoding);
-        fr_sentences.push_back(fr_encoding);
-
-        num_encoded_sentences++;
-        if (num_encoded_sentences % 100000 == 0) {
-            cout << "Encoded " << num_encoded_sentences << " rows" << endl;
+        if (count % 10000 == 0) {
+            cout << "Loaded " << count << " sentence pairs" << endl;
         }
     }
 
@@ -97,7 +82,56 @@ pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_csv
         throw runtime_error("English/French sentence count mismatch");
     }
 
+    cout << "Total loaded: " << en_sentences.size() << " sentence pairs" << endl;
+
     return {en_sentences, fr_sentences};
+}
+
+pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_parallel_files(
+    const string& en_path, const string& fr_path,
+    BPETokenizer& tokenizer, int max_num_sentences, int max_len_sentences) {
+
+    // First, load raw sentences
+    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(en_path, fr_path, max_num_sentences, max_len_sentences);
+
+    // Then tokenize them
+    vector<vector<int>> en_tokens;
+    vector<vector<int>> fr_tokens;
+    en_tokens.reserve(en_sentences.size());
+    fr_tokens.reserve(fr_sentences.size());
+
+    int skipped_too_long = 0;
+    int skipped_too_short = 0;
+
+    for (int i = 0; i < en_sentences.size(); i++) {
+        vector<int> en_encoding = tokenizer.encode(en_sentences[i], true, true);
+        vector<int> fr_encoding = tokenizer.encode(fr_sentences[i], true, true);
+
+        // Skip if too long
+        if (en_encoding.size() > max_len_sentences || fr_encoding.size() > max_len_sentences) {
+            skipped_too_long++;
+            continue;
+        }
+
+        // Skip if too short
+        if (en_encoding.size() < 5 || fr_encoding.size() < 5) {
+            skipped_too_short++;
+            continue;
+        }
+
+        en_tokens.push_back(en_encoding);
+        fr_tokens.push_back(fr_encoding);
+
+        if (en_tokens.size() % 10000 == 0) {
+            cout << "Tokenized " << en_tokens.size() << " sentence pairs" << endl;
+        }
+    }
+
+    cout << "Total tokenized: " << en_tokens.size() << " sentence pairs" << endl;
+    cout << "Skipped (too long): " << skipped_too_long << endl;
+    cout << "Skipped (too short): " << skipped_too_short << endl;
+
+    return {en_tokens, fr_tokens};
 }
 
 DatasetSplit split_dataset(const vector<vector<int>>& en_tokens, const vector<vector<int>>& fr_tokens, double train_size, double val_size) {
@@ -120,108 +154,81 @@ DatasetSplit split_dataset(const vector<vector<int>>& en_tokens, const vector<ve
     return split;
 }
 
-pair<vector<string>, vector<string>> load_sentences(const string& csv_path, int max_num_sentences, int max_len_sentences) {
-    ifstream in(csv_path, ios::binary);
-    if (!in) {
-        throw runtime_error("Can not open CSV file: " + csv_path);
-    }
-
-    // Skip the header
-    string header;
-    getline(in, header);
-
-    vector<string> en_sentences;
-    vector<string> fr_sentences;
-
-    string line;
-    int num_encoded_sentences = 0;
-    while (getline(in, line) && (num_encoded_sentences < max_num_sentences)) {
-        if (line.empty()) continue;
-
-        auto [en_text, fr_text] = parse_csv_line_two_columns(line);
-
-        if ((en_text.size() > max_len_sentences) || (fr_text.size() > max_len_sentences)) continue;
-        en_sentences.push_back(en_text);
-        fr_sentences.push_back(fr_text);
-
-        num_encoded_sentences++;
-        if (num_encoded_sentences % 100000 == 0) {
-            cout << "Encoded " << num_encoded_sentences << " rows" << endl;
-        }
-    }
-
-    if (en_sentences.size() != fr_sentences.size()) {
-        throw runtime_error("English/French sentence count mismatch");
-    }
-
-    return {en_sentences, fr_sentences};
-}
-
-void test_bpe_tokenizer() {
-    vector<string> corpus;
-    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, 128);
-    corpus.reserve(en_sentences.size() + fr_sentences.size());
-    for (auto& s : en_sentences) corpus.push_back(s);
-    for (auto& s : fr_sentences) corpus.push_back(s);
-
-    BPETokenizer tok;
-    tok.train(corpus, 2000);
-
-    auto ids = tok.encode("Hello world", true, true);
-    cout << "Encoding: " << endl;
-    for (auto id: ids) {
-        cout << id << ", ";
+void test_tokenizer(BPETokenizer* tokenizer) {
+    const string sentence = "Hello, my name is Benoît";
+    vector<int> encoding = tokenizer->encode(sentence, true, true);
+    string decoding = tokenizer->decode(encoding);
+    cout << "Sentence: " << sentence << endl;
+    cout << "Encoding: ";
+    for (auto it = encoding.begin(); it != encoding.end(); it++) {
+        cout << *it << ", ";
     }
     cout << endl;
-    auto text = tok.decode(ids);
-    cout << "Decoding: " << text << endl;
+    cout << "Decoding: " << decoding << endl;
 }
 
-void train_test_translation() {
-    // test_bpe_tokenizer();
-    // return;
-    const string path_to_text = "../translation/en-fr-shuffled.csv";
-    int num_encoder_layers = 3;
-    int num_decoder_layers = 3;
-    int seq = 128;
-    int d_model = 256;
-    int h = 4;
-    int vocab_size = 10000;
-    int num_epochs = 1;
-    int batch_size = 1024;
-
+void train_and_save_tokenizer(TrainingConfig config) {
     BPETokenizer* tokenizer = new BPETokenizer;
     vector<string> corpus;
-    auto [en_sentences, fr_sentences] = load_sentences("../translation/en-fr-shuffled.csv", 10000, seq);
+    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(config.en_data_path, config.fr_data_path, config.N, config.seq);
     corpus.reserve(en_sentences.size() + fr_sentences.size());
     for (auto& en_sentence : en_sentences) corpus.push_back(en_sentence);
     for (auto& fr_sentence: fr_sentences) corpus.push_back(fr_sentence);
-    tokenizer->train(corpus, vocab_size);
+    tokenizer->train(corpus, config.vocab_size);
+    tokenizer->save(config.tokenizer_path);
+}
 
-    // test_tokenizer(tokenizer);
-    ActivationFunction* activation = new Relu();
-    Optimizer* optimizer = new AdamOptimizer(nullptr);
+void init_and_save_model(TrainingConfig config, int vocab_size) {
+    TransformerNetwork* transformer_network = new TransformerNetwork(
+        config.num_encoder_layers, config.num_decoder_layers,
+        config.seq, config.d_model, config.h,
+        vocab_size, new Relu(), new AdamOptimizer(nullptr, config.learning_rate, config.beta1, config.beta2)
+    );
+    transformer_network->save_model(config.model_path);
+}
 
-    int N = 100000;
-    double train_size = 0.8;
-    double val_size = 0.1;
-    auto [en_tokens, fr_tokens] = load_tokenized_sentences_from_csv(path_to_text, *tokenizer, N, seq);
-    DatasetSplit data = split_dataset(en_tokens, fr_tokens, train_size, val_size);
-
-    TransformerNetwork* transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, optimizer);
-    transformer_network->get_optimizer()->update_optimizer();
+void train_test_translation() {
+    TrainingConfig cfg;
     chrono::time_point<chrono::high_resolution_clock> start, end;
-    start = chrono::high_resolution_clock::now();
-    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, num_epochs, batch_size);
-    end = chrono::high_resolution_clock::now();
-    cout << "N=" << N << " ; num_epochs=" << num_epochs << " ; batch_size=" << batch_size << " ; vocab_size=" << vocab_size << ": Took " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
-    transformer_network->save_model("../transformer_models/test_long_training.txt");
+
+    // Train tokenizer and save at cfg.tokenizer_path
+    // train_and_save_tokenizer(cfg);
     
-    transformer_network->infer(data.en_test, tokenizer, "../translation/output.csv");
-    // TransformerNetwork* loaded_transformer_network = new TransformerNetwork(num_encoder_layers, num_decoder_layers, seq, d_model, h, tokenizer->get_vocab_size(), activation, cross_entropy_loss, optimizer);
-    // cout << "Loading the model" << endl;
-    // transformer_network->load_model("../tansformer_models/test_long_training_16_09.txt");
-    // vector<int> sentence_tokens = tokenizer->encode("in january 1996, government accepted claim for negotiation while inquiry underway.");
-    // vector<int> decoder_tokens = {0};
-    // cout << transformer_network->forward(sentence_tokens, decoder_tokens);
+    // Load tokenizer
+    BPETokenizer* tokenizer = new BPETokenizer;
+    tokenizer->load(cfg.tokenizer_path);
+    // test_tokenizer(tokenizer);
+    
+    // Initialize model and save at cfg.model_path
+    init_and_save_model(cfg, tokenizer->get_vocab_size());
+
+    // Create and train model
+    ActivationFunction* activation = new Relu();
+    Optimizer* optimizer = new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2);
+    TransformerNetwork* transformer_network = new TransformerNetwork(cfg.model_path, activation, optimizer);
+    transformer_network->get_optimizer()->update_optimizer();
+
+    // Load and split dataset
+    start = chrono::high_resolution_clock::now();
+    auto [en_tokens, fr_tokens] = load_tokenized_sentences_from_parallel_files(cfg.en_data_path, cfg.fr_data_path, *tokenizer, cfg.N, cfg.seq);
+    DatasetSplit data = split_dataset(en_tokens, fr_tokens, cfg.train_size, cfg.val_size);
+    end = chrono::high_resolution_clock::now();
+    cout << "Time for loading the sentences and tokenizing them: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+
+    // Train model
+    start = chrono::high_resolution_clock::now();
+    transformer_network->train(data.en_train, data.fr_train, data.en_val, data.fr_val, cfg.num_epochs, cfg.batch_size);
+    end = chrono::high_resolution_clock::now();
+
+    cout << "N=" << cfg.N << " ; epochs=" << cfg.num_epochs
+         << " ; batch_size=" << cfg.batch_size << " ; vocab_size=" << cfg.vocab_size
+         << " ; d_model=" << cfg.d_model << " ; h=" << cfg.h << endl;
+    cout << "Time: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+
+    // Save model
+    transformer_network->save_model(cfg.model_path);
+
+    // Run inference on test set
+    // transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
+
 }

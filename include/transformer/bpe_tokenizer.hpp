@@ -78,6 +78,12 @@ class BPETokenizer {
         const unordered_map<string, int>& get_token_to_id() const;
         const vector<pair<string, string>>& get_merge_rules() const;
 
+        // Save tokenizer to file
+        void save(const string& path) const;
+
+        // Load tokenizer from file
+        void load(const string& path);
+
 };
 
 #endif

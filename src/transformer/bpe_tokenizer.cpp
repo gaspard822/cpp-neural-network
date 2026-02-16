@@ -1,5 +1,7 @@
 #include "transformer/bpe_tokenizer.hpp"
 
+#include <fstream>
+#include <stdexcept>
 #include <unordered_set>
 
 using namespace std;
@@ -263,4 +265,81 @@ const unordered_map<string, int>& BPETokenizer::get_token_to_id() const {
 
 const vector<pair<string, string>>& BPETokenizer::get_merge_rules() const {
     return merge_rules;
+}
+
+void BPETokenizer::save(const string& path) const {
+    ofstream file(path);
+    if (!file.is_open()) throw runtime_error("Could not open file for writing: " + path);
+
+    // Save vocabulary size
+    file << id_to_token.size() << "\n";
+
+    // Save all tokens with length-prefixed format (to handle spaces and special chars)
+    for (const string& token : id_to_token) {
+        file << token.length() << " " << token << "\n";
+    }
+
+    // Save merge rules
+    file << merge_rules.size() << "\n";
+    for (const auto& [first, second] : merge_rules) {
+        file << first.length() << " " << first << " ";
+        file << second.length() << " " << second << "\n";
+    }
+
+    file.close();
+}
+
+void BPETokenizer::load(const string& path) {
+    ifstream file(path);
+    if (!file.is_open()) throw runtime_error("Could not open file for reading: " + path);
+
+    // Clear existing data
+    id_to_token.clear();
+    token_to_id.clear();
+    merge_rules.clear();
+
+    // Load vocabulary
+    int vocab_size;
+    file >> vocab_size;
+
+    id_to_token.reserve(vocab_size);
+    for (int i = 0; i < vocab_size; i++) {
+        int length;
+        file >> length;
+        file.ignore(1); // skip space
+
+        string token;
+        token.resize(length);
+        file.read(&token[0], length);
+        file.ignore(1); // skip newline
+
+        id_to_token.push_back(token);
+        token_to_id[token] = i;
+    }
+
+    // Load merge rules
+    int num_merges;
+    file >> num_merges;
+
+    merge_rules.reserve(num_merges);
+    for (int i = 0; i < num_merges; i++) {
+        int len1, len2;
+        file >> len1;
+        file.ignore(1); // skip space
+
+        string first, second;
+        first.resize(len1);
+        file.read(&first[0], len1);
+
+        file >> len2;
+        file.ignore(1); // skip space
+
+        second.resize(len2);
+        file.read(&second[0], len2);
+        file.ignore(1); // skip newline
+
+        merge_rules.push_back({first, second});
+    }
+
+    file.close();
 }
