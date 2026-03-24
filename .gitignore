@@ -8,3 +8,4 @@ models/*
 translation/
 LLMs.pdf
 transformer_models/
+transformer_models_old/

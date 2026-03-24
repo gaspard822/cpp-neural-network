@@ -8,8 +8,15 @@
 class Decoder {
     private:
         int seq, d_model, h, d_k, d_v, d_ff;
+        LayerNorm* ln1;
+        MultiHeadAttention* mha_masked;
+        LayerNorm* ln2;
         MultiHeadAttention* mha_cross;
+        LayerNorm* ln3;
+        FeedForward* ff;
         vector<Layer*> layers;
+        MatrixXd output;
+        MatrixXd d_input;
         MatrixXd d_encoder_input;
         ActivationFunction* activation;
         

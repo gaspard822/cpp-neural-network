@@ -3,7 +3,7 @@
 
 #include "core/layer.hpp"
 
-class InputLayer: Layer {
+class InputLayer: public Layer {
     private:
         int seq, d_model, vocab_size;
         MatrixXd embeddings, d_embeddings;

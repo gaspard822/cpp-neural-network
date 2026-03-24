@@ -8,56 +8,68 @@
 Decoder::Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
     seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), d_ff(d_ff), activation(activation) {
 
-    // LayerNorm
-    layers.push_back(new LayerNorm(seq, d_model));
-    // MultiHeadAttention
-    layers.push_back(new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::DECODER_MASKED_SELF));
-    // LayerNorm
-    layers.push_back(new LayerNorm(seq, d_model));
-    // MultiHeadAttention
+    ln1 = new LayerNorm(seq, d_model);
+    mha_masked = new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::DECODER_MASKED_SELF);
+    ln2 = new LayerNorm(seq, d_model);
     mha_cross = new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::DECODER_CROSS);
+    ln3 = new LayerNorm(seq, d_model);
+    ff = new FeedForward(activation, seq, d_model, d_ff);
+
+    layers.push_back(ln1);
+    layers.push_back(mha_masked);
+    layers.push_back(ln2);
     layers.push_back(mha_cross);
-    // LayerNorm
-    layers.push_back(new LayerNorm(seq, d_model));
-    // FeedForward
-    layers.push_back(new FeedForward(activation, seq, d_model, d_ff));
+    layers.push_back(ln3);
+    layers.push_back(ff);
 
 }
 
 void Decoder::forward(const MatrixXd& encoder_input, const MatrixXd& decoder_input) {
+    ln1->forward(decoder_input);
+    mha_masked->forward(ln1->get_output());
+    MatrixXd after_masked = mha_masked->get_output() + decoder_input;
+
+    ln2->forward(after_masked);
     mha_cross->set_encoder_output(encoder_input);
-    const MatrixXd* layer_output = &decoder_input;
-    for (Layer* layer: layers) {
-        layer->forward(*layer_output);
-        layer_output = &layer->get_output();
-    }
+    mha_cross->forward(ln2->get_output());
+    MatrixXd after_cross = mha_cross->get_output() + after_masked;
+
+    ln3->forward(after_cross);
+    ff->forward(ln3->get_output());
+    output = ff->get_output() + after_cross;
 }
 
 void Decoder::backward(const MatrixXd& d_output) {
-    const MatrixXd* layer_d_input = &d_output;
-    int num_layers = layers.size();
-    for (int i = num_layers - 1; i >= 0; i--) {
-        layers[i]->backward(*layer_d_input);
-        layer_d_input = &layers[i]->get_d_input();
-    }
+    ff->backward(d_output);
+    ln3->backward(ff->get_d_input());
+    MatrixXd d_after_cross = ln3->get_d_input() + d_output;
+
+    mha_cross->backward(d_after_cross);
     d_encoder_input = mha_cross->get_d_encoder_output();
+    ln2->backward(mha_cross->get_d_input());
+    MatrixXd d_after_masked = ln2->get_d_input() + d_after_cross;
+
+    mha_masked->backward(d_after_masked);
+    ln1->backward(mha_masked->get_d_input());
+    d_input = ln1->get_d_input() + d_after_masked;
 }
 
 MatrixXd Decoder::infer(const MatrixXd& encoder_input, const MatrixXd& decoder_input) {
     mha_cross->set_encoder_output(encoder_input);
-    MatrixXd output = decoder_input;
-    for (Layer* layer : layers) {
-        output = layer->infer(output);
-    }
-    return output;
+    MatrixXd x_norm1 = ln1->infer(decoder_input);
+    MatrixXd after_masked = mha_masked->infer(x_norm1) + decoder_input;
+    MatrixXd x_norm2 = ln2->infer(after_masked);
+    MatrixXd after_cross = mha_cross->infer(x_norm2) + after_masked;
+    MatrixXd x_norm3 = ln3->infer(after_cross);
+    return ff->infer(x_norm3) + after_cross;
 }
 
 const MatrixXd& Decoder::get_output() const {
-    return layers.back()->get_output();
+    return output;
 }
 
 const MatrixXd& Decoder::get_d_input() const {
-    return layers.front()->get_d_input();
+    return d_input;
 }
 
 const MatrixXd& Decoder::get_d_encoder_input() const {

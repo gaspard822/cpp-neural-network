@@ -36,7 +36,7 @@ void FeedForward::forward(const MatrixXd& input) {
     X = input;
     U = (input * W1).rowwise() + b1;
     H = activation->apply(U);
-    output = ((H * W2).rowwise() + b2) + input;
+    output = (H * W2).rowwise() + b2;
 }
 
 void FeedForward::backward(const MatrixXd& d_output) {
@@ -45,13 +45,13 @@ void FeedForward::backward(const MatrixXd& d_output) {
     MatrixXd d_U = (d_output * W2.transpose()).cwiseProduct(activation->derivative(U));
     d_W1 += X.transpose() * d_U;
     d_b1 += d_U.colwise().sum();
-    d_input = d_U * W1.transpose() + d_output;
+    d_input = d_U * W1.transpose();
 }
 
 MatrixXd FeedForward::infer(const MatrixXd& input) const {
     MatrixXd U_tmp = (input * W1).rowwise() + b1;
     MatrixXd H_tmp = activation->apply(U_tmp);
-    return ((H_tmp * W2).rowwise() + b2) + input;
+    return (H_tmp * W2).rowwise() + b2;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {

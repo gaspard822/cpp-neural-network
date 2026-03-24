@@ -69,3 +69,45 @@ void AdamOptimizer::update_parameters() const {
 OptimizerType AdamOptimizer::get_type() const {
     return OptimizerType::ADAM;
 }
+
+void AdamOptimizer::save(ofstream& file) const {
+    file << t << "\n";
+    for (Layer* layer : network->get_layers()) {
+        for (const TrainableParameter& p : layer->get_parameters()) {
+            auto it = states.find(p.value_data);
+            if (it == states.end()) {
+                // No state yet (shouldn't happen after training) - write zeros
+                for (Index i = 0; i < p.rows * p.cols; i++) file << "0 ";
+                file << "\n";
+                for (Index i = 0; i < p.rows * p.cols; i++) file << "0 ";
+                file << "\n";
+            } else {
+                const MatrixXd& m = it->second.m;
+                const MatrixXd& v = it->second.v;
+                for (Index r = 0; r < m.rows(); r++)
+                    for (Index c = 0; c < m.cols(); c++)
+                        file << m(r, c) << " ";
+                file << "\n";
+                for (Index r = 0; r < v.rows(); r++)
+                    for (Index c = 0; c < v.cols(); c++)
+                        file << v(r, c) << " ";
+                file << "\n";
+            }
+        }
+    }
+}
+
+void AdamOptimizer::load(ifstream& file) {
+    file >> t;
+    for (Layer* layer : network->get_layers()) {
+        for (const TrainableParameter& p : layer->get_parameters()) {
+            AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
+            for (Index r = 0; r < p.rows; r++)
+                for (Index c = 0; c < p.cols; c++)
+                    file >> st.m(r, c);
+            for (Index r = 0; r < p.rows; r++)
+                for (Index c = 0; c < p.cols; c++)
+                    file >> st.v(r, c);
+        }
+    }
+}

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_compile_options(-O2)
+add_compile_options(-O3)
 
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
@@ -49,4 +49,4 @@ set(SOURCES
 add_executable(basic_nn ${SOURCES})
 
 target_link_libraries(basic_nn PRIVATE OpenMP::OpenMP_CXX)
-target_compile_definitions(basic_nn PRIVATE EIGEN_USE_THREADS)
+target_compile_definitions(basic_nn PRIVATE EIGEN_USE_OPENMP)

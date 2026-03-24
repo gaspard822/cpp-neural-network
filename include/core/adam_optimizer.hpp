@@ -65,6 +65,9 @@ class AdamOptimizer : public Optimizer {
          * @return OptimizerType Enum value corresponding to the optimizer type
          */
         OptimizerType get_type() const override;
+
+        void save(ofstream& file) const override;
+        void load(ifstream& file) override;
 };
 
 #endif

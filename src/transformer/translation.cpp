@@ -17,8 +17,8 @@ struct TrainingConfig {
 
     // Training hyperparameters
     int num_epochs = 1;
-    int batch_size = 1024;
-    double learning_rate = 0.001;
+    int batch_size = 256;
+    double learning_rate = 0.0002;
     double beta1 = 0.9;
     double beta2 = 0.999;
 
@@ -32,7 +32,8 @@ struct TrainingConfig {
     string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
     string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
     string model_path = "../transformer_models/saved_model.txt";
-    string output_path = "../translation/output.csv";
+    string output_path = "../translation/output_epoch_4.csv";
+    string tokenized_cache_path = "../transformer_models/tokenized_cache.bin";
 };
 
 struct DatasetSplit {
@@ -85,6 +86,72 @@ pair<vector<string>, vector<string>> load_sentences_from_parallel_files(
     cout << "Total loaded: " << en_sentences.size() << " sentence pairs" << endl;
 
     return {en_sentences, fr_sentences};
+}
+
+void save_tokenized_data(const string& cache_path, const vector<vector<int>>& en_tokens, const vector<vector<int>>& fr_tokens) {
+    ofstream file(cache_path, ios::binary);
+    if (!file.is_open()) throw runtime_error("Cannot open cache file for writing: " + cache_path);
+
+    // Save number of sentence pairs
+    int num_pairs = en_tokens.size();
+    file.write(reinterpret_cast<const char*>(&num_pairs), sizeof(num_pairs));
+
+    // Save each sentence pair
+    for (int i = 0; i < num_pairs; i++) {
+        // Save English sentence
+        int en_len = en_tokens[i].size();
+        file.write(reinterpret_cast<const char*>(&en_len), sizeof(en_len));
+        file.write(reinterpret_cast<const char*>(en_tokens[i].data()), en_len * sizeof(int));
+
+        // Save French sentence
+        int fr_len = fr_tokens[i].size();
+        file.write(reinterpret_cast<const char*>(&fr_len), sizeof(fr_len));
+        file.write(reinterpret_cast<const char*>(fr_tokens[i].data()), fr_len * sizeof(int));
+    }
+
+    file.close();
+    cout << "Saved " << num_pairs << " tokenized sentence pairs to " << cache_path << endl;
+}
+
+pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_data(const string& cache_path) {
+    ifstream file(cache_path, ios::binary);
+    if (!file.is_open()) throw runtime_error("Cannot open cache file for reading: " + cache_path);
+
+    vector<vector<int>> en_tokens;
+    vector<vector<int>> fr_tokens;
+
+    // Read number of sentence pairs
+    int num_pairs;
+    file.read(reinterpret_cast<char*>(&num_pairs), sizeof(num_pairs));
+
+    en_tokens.reserve(num_pairs);
+    fr_tokens.reserve(num_pairs);
+
+    // Read each sentence pair
+    for (int i = 0; i < num_pairs; i++) {
+        // Read English sentence
+        int en_len;
+        file.read(reinterpret_cast<char*>(&en_len), sizeof(en_len));
+        vector<int> en_sentence(en_len);
+        file.read(reinterpret_cast<char*>(en_sentence.data()), en_len * sizeof(int));
+        en_tokens.push_back(en_sentence);
+
+        // Read French sentence
+        int fr_len;
+        file.read(reinterpret_cast<char*>(&fr_len), sizeof(fr_len));
+        vector<int> fr_sentence(fr_len);
+        file.read(reinterpret_cast<char*>(fr_sentence.data()), fr_len * sizeof(int));
+        fr_tokens.push_back(fr_sentence);
+
+        if ((i + 1) % 10000 == 0) {
+            cout << "Loaded " << (i + 1) << " tokenized sentence pairs" << endl;
+        }
+    }
+
+    file.close();
+    cout << "Total loaded: " << en_tokens.size() << " tokenized sentence pairs from cache" << endl;
+
+    return {en_tokens, fr_tokens};
 }
 
 pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_parallel_files(
@@ -200,20 +267,36 @@ void train_test_translation() {
     // test_tokenizer(tokenizer);
     
     // Initialize model and save at cfg.model_path
-    init_and_save_model(cfg, tokenizer->get_vocab_size());
+    // init_and_save_model(cfg, tokenizer->get_vocab_size());
 
-    // Create and train model
+    // Load and train model
     ActivationFunction* activation = new Relu();
     Optimizer* optimizer = new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2);
     TransformerNetwork* transformer_network = new TransformerNetwork(cfg.model_path, activation, optimizer);
     transformer_network->get_optimizer()->update_optimizer();
 
+    transformer_network->infer_live(tokenizer);
+    return;
+
     // Load and split dataset
     start = chrono::high_resolution_clock::now();
-    auto [en_tokens, fr_tokens] = load_tokenized_sentences_from_parallel_files(cfg.en_data_path, cfg.fr_data_path, *tokenizer, cfg.N, cfg.seq);
+    vector<vector<int>> en_tokens, fr_tokens;
+
+    // Try to load from cache first
+    ifstream cache_check(cfg.tokenized_cache_path);
+    if (cache_check.good()) {
+        cout << "Loading tokenized data from cache" << endl;
+        tie(en_tokens, fr_tokens) = load_tokenized_data(cfg.tokenized_cache_path);
+    } else {
+        cout << "Cache not found. Tokenizing sentences" << endl;
+        tie(en_tokens, fr_tokens) = load_tokenized_sentences_from_parallel_files(cfg.en_data_path, cfg.fr_data_path, *tokenizer, cfg.N, cfg.seq);
+        // Save to cache for next time
+        save_tokenized_data(cfg.tokenized_cache_path, en_tokens, fr_tokens);
+    }
+
     DatasetSplit data = split_dataset(en_tokens, fr_tokens, cfg.train_size, cfg.val_size);
     end = chrono::high_resolution_clock::now();
-    cout << "Time for loading the sentences and tokenizing them: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+    cout << "Time for loading/tokenizing sentences: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 
     // Train model
     start = chrono::high_resolution_clock::now();
@@ -229,6 +312,6 @@ void train_test_translation() {
     transformer_network->save_model(cfg.model_path);
 
     // Run inference on test set
-    // transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
+    transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
 
 }

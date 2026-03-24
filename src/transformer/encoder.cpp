@@ -8,48 +8,51 @@
 Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
     seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), d_ff(d_ff), activation(activation) {
 
-    // LayerNorm
-    layers.push_back(new LayerNorm(seq, d_model));
-    // MultiHeadAttention
-    layers.push_back(new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::ENCODER_SELF));
-    // LayerNorm
-    layers.push_back(new LayerNorm(seq, d_model));
-    // FeedForward
-    layers.push_back(new FeedForward(activation, seq, d_model, d_ff));
+    ln1 = new LayerNorm(seq, d_model);
+    mha_self = new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::ENCODER_SELF);
+    ln2 = new LayerNorm(seq, d_model);
+    ff = new FeedForward(activation, seq, d_model, d_ff);
+
+    layers.push_back(ln1);
+    layers.push_back(mha_self);
+    layers.push_back(ln2);
+    layers.push_back(ff);
 
 }
 
 void Encoder::forward(const MatrixXd& input) {
-    const MatrixXd* layer_output = &input;
-    for (Layer* layer: layers) {
-        layer->forward(*layer_output);
-        layer_output = &layer->get_output();
-    }
+    ln1->forward(input);
+    mha_self->forward(ln1->get_output());
+    MatrixXd after_attn = mha_self->get_output() + input;
+
+    ln2->forward(after_attn);
+    ff->forward(ln2->get_output());
+    output = ff->get_output() + after_attn;
 }
 
 void Encoder::backward(const MatrixXd& d_output) {
-    const MatrixXd* layer_d_input = &d_output;
-    int num_layers = layers.size();
-    for (int i = num_layers - 1; i >= 0; i--) {
-        layers[i]->backward(*layer_d_input);
-        layer_d_input = &layers[i]->get_d_input();
-    }
+    ff->backward(d_output);
+    ln2->backward(ff->get_d_input());
+    MatrixXd d_after_attn = ln2->get_d_input() + d_output;
+
+    mha_self->backward(d_after_attn);
+    ln1->backward(mha_self->get_d_input());
+    d_input = ln1->get_d_input() + d_after_attn;
 }
 
 MatrixXd Encoder::infer(const MatrixXd& input) {
-    MatrixXd output = input;
-    for (Layer* layer : layers) {
-        output = layer->infer(output);
-    }
-    return output;
+    MatrixXd x_norm1 = ln1->infer(input);
+    MatrixXd after_attn = mha_self->infer(x_norm1) + input;
+    MatrixXd x_norm2 = ln2->infer(after_attn);
+    return ff->infer(x_norm2) + after_attn;
 }
 
 const MatrixXd& Encoder::get_output() const {
-    return layers.back()->get_output();
+    return output;
 }
 
 const MatrixXd& Encoder::get_d_input() const {
-    return layers.front()->get_d_input();
+    return d_input;
 }
 
 const vector<Layer*>& Encoder::get_layers() {

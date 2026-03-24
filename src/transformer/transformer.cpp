@@ -10,7 +10,7 @@ void TransformerNetwork::init_layers() {
 
     layers = {};
     encoder_input_layer = new InputLayer(seq, d_model, vocab_size);
-    layers.push_back((Layer*) encoder_input_layer);
+    layers.push_back(encoder_input_layer);
     for (int i = 0; i < num_encoder_layers; i++) {
         Encoder* encoder = new Encoder(seq, d_model, h, d_k, d_v, d_ff, activation);
         encoders.push_back(encoder);
@@ -18,6 +18,7 @@ void TransformerNetwork::init_layers() {
     }
 
     decoder_input_layer = new InputLayer(seq, d_model, vocab_size);
+    layers.push_back(decoder_input_layer);
     for (int i = 0; i < num_decoder_layers; i++) {
         Decoder* decoder = new Decoder(seq, d_model, h, d_k, d_v, d_ff, activation);
         decoders.push_back(decoder);
@@ -25,7 +26,7 @@ void TransformerNetwork::init_layers() {
     }
 
     linear_layer = new LinearLayer(d_model, vocab_size);
-    layers.push_back((Layer*) linear_layer);
+    layers.push_back(linear_layer);
 
     cross_entropy_loss = new CrossEntropy();
     optimizer->set_network(this);
@@ -165,6 +166,39 @@ void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPE
     file.close();
 }
 
+void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
+    cout << "Type a sentence in English and press Enter. Ctrl+C to quit." << endl;
+    string line;
+    while (true) {
+        cout << "\n> ";
+        if (!getline(cin, line)) break;
+        if (line.empty()) continue;
+
+        vector<int> encoder_token_ids = tokenizer->encode(line, true, true);
+
+        MatrixXd encoder_output = encoder_input_layer->infer(encoder_token_ids);
+        for (Encoder* encoder : encoders) {
+            encoder_output = encoder->infer(encoder_output);
+        }
+
+        int last_token = BPETokenizer::SOS_ID;
+        vector<int> predicted_tokens = {last_token};
+        while (last_token != BPETokenizer::EOS_ID && predicted_tokens.size() < seq) {
+            MatrixXd decoder_output = decoder_input_layer->infer(predicted_tokens);
+            for (Decoder* decoder : decoders) {
+                decoder_output = decoder->infer(encoder_output, decoder_output);
+            }
+            MatrixXd linear_layer_output = linear_layer->infer(decoder_output);
+            int last_row = linear_layer_output.rows() - 1;
+            linear_layer_output.row(last_row).maxCoeff(&last_token);
+            predicted_tokens.push_back(last_token);
+        }
+
+        string predicted_sentence = tokenizer->decode(predicted_tokens);
+        cout << predicted_sentence << endl;
+    }
+}
+
 double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val) {
     int N = encoder_tokens_val.size();
     double loss = 0;
@@ -201,7 +235,7 @@ void TransformerNetwork::train(
 
     auto [decoder_input_token_ids_train, decoder_target_token_ids_train] = preprocess_decoder_token_ids(decoder_tokens_train);
 
-        
+    reset_gradients();
     for (int epoch = 0; epoch < epochs; epoch++) {
         cout << "Epoch " << epoch << endl;
 
@@ -213,21 +247,20 @@ void TransformerNetwork::train(
         mt19937 gen(rd());
         shuffle(indices.begin(), indices.end(), gen);
 
+        int count = 0;
         for (int start = 0; start < N; start += batch_size) {
             int end = min(start + batch_size, N);
             for (int i = start; i < end; i++) {
+                if (count % 10000 == 0) cout << "Trained on " << count << " samples" << endl;
+                count += 1;
                 int idx = indices[i];
                 const vector<int>& encoder_token_ids = encoder_tokens_train[idx];
-                const vector<int>& decoder_token_ids = decoder_tokens_train[idx];
                 const vector<int>& decoder_input_token_ids = decoder_input_token_ids_train[idx];
                 const vector<int>& decoder_target_token_ids = decoder_target_token_ids_train[idx];
-                // cout << "1" << endl;
                 const MatrixXd& forwarded = forward(encoder_token_ids, decoder_input_token_ids);
-                // cout << "2" << endl;
                 backward(decoder_target_token_ids, forwarded);
-                // cout << "3" << endl;
             }
-            normalize_gradients(batch_size);
+            normalize_gradients(end - start);
             optimizer->update_parameters();
             reset_gradients();
         }
@@ -262,6 +295,7 @@ void TransformerNetwork::save_model(const string& path) const {
     }
 
     linear_layer->save(file);
+    optimizer->save(file);
 }
 
 void TransformerNetwork::load_model(const string& path) {
@@ -280,6 +314,7 @@ void TransformerNetwork::load_model(const string& path) {
     }
 
     linear_layer->load(file);
+    optimizer->load(file);
 }
 
 const vector<Layer*>& TransformerNetwork::get_layers() const {

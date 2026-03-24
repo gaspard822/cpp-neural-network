@@ -1,6 +1,7 @@
 #ifndef OPTIMIZER_HPP
 #define OPTIMIZER_HPP
 
+#include <fstream>
 #include "core/layer.hpp"
 
 class Network;
@@ -48,6 +49,9 @@ class Optimizer {
          * @return OptimizerType Enum value indicating the optimizer type
          */
         virtual OptimizerType get_type() const = 0;
+
+        virtual void save(ofstream& file) const = 0;
+        virtual void load(ifstream& file) = 0;
 };
 
 #endif

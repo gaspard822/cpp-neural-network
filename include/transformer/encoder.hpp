@@ -8,8 +8,14 @@
 class Encoder {
     private:
         int seq, d_model, h, d_k, d_v, d_ff;
+        LayerNorm* ln1;
+        MultiHeadAttention* mha_self;
+        LayerNorm* ln2;
+        FeedForward* ff;
         vector<Layer*> layers;
         ActivationFunction* activation;
+        MatrixXd output;
+        MatrixXd d_input;
         
     public:
         Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);

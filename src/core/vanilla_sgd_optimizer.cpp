@@ -53,3 +53,11 @@ void VanillaSGDOptimizer::update_parameters() const {
 OptimizerType VanillaSGDOptimizer::get_type() const {
     return OptimizerType::VANILLA_SGD;
 }
+
+void VanillaSGDOptimizer::save(ofstream& file) const {
+
+}
+
+void VanillaSGDOptimizer::load(ifstream& file) {
+    
+}

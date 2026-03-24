@@ -46,6 +46,7 @@ class TransformerNetwork : public Network {
         const MatrixXd& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
         void backward(const vector<int>& y_true, const MatrixXd& y_pred);
         void infer(const vector<vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const string& csv_path) const;
+        void infer_live(BPETokenizer* tokenizer) const;
         double compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val);
         void reset_gradients();
         void normalize_gradients(int batch_size);

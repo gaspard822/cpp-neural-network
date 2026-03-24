@@ -80,7 +80,6 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         if (is_masked_attention()) {
             softmaxJ[i] += forward_mask.topLeftCorner(num_q_tokens, num_kv_tokens);
         }
-        // cout << "softmaxJ[i]: " << softmaxJ[i].rows() << "," << softmaxJ[i].cols() << endl;
         VectorXd J_i_max = softmaxJ[i].rowwise().maxCoeff();
         softmaxJ[i] = softmaxJ[i] - J_i_max.replicate(1, num_kv_tokens);
         softmaxJ[i] = softmaxJ[i].array().exp();
@@ -90,8 +89,6 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
         head[i] = softmaxJ[i] * V[i];
         output += head[i] * WO[i];
     }
-
-    output = output + input;
 }
 
 void MultiHeadAttention::backward(const MatrixXd& d_output) {
@@ -102,7 +99,7 @@ void MultiHeadAttention::backward(const MatrixXd& d_output) {
     } else {
         num_kv_tokens = encoder_output.rows();
     }
-    d_input = d_output;
+    d_input = MatrixXd::Zero(num_q_tokens, d_model);
     if (is_cross_attention()) d_encoder_output = MatrixXd::Zero(num_kv_tokens, d_model);
     for (int i = 0; i < h; i++) {
         MatrixXd d_head = d_output * WO[i].transpose();
@@ -171,7 +168,6 @@ MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
         output_tmp += (softmaxJ_tmp[i] * V_tmp[i]) * WO[i];
     }
 
-    output_tmp = output_tmp + input;
     return output_tmp;
 }
 
