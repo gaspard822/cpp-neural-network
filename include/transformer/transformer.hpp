@@ -40,7 +40,7 @@ class TransformerNetwork : public Network {
 
         ~TransformerNetwork();
 
-        // Private helper to initialize layers (called by both constructors)
+        // Helper that initializes layers (called by both constructors)
         void init_layers();
 
         const MatrixXd& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);

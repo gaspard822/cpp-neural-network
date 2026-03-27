@@ -31,7 +31,7 @@ struct TrainingConfig {
     string en_data_path = "../translation/news-commentary-v9.fr-en.en";
     string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
     string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
-    string model_path = "../transformer_models/saved_model.txt";
+    string model_path = "../transformer_models/saved_model_new.txt";
     string output_path = "../translation/output_epoch_4.csv";
     string tokenized_cache_path = "../transformer_models/tokenized_cache.bin";
 };
@@ -234,7 +234,7 @@ void test_tokenizer(BPETokenizer* tokenizer) {
     cout << "Decoding: " << decoding << endl;
 }
 
-void train_and_save_tokenizer(TrainingConfig config) {
+void train_and_save_tokenizer(TrainingConfig& config) {
     BPETokenizer* tokenizer = new BPETokenizer;
     vector<string> corpus;
     auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(config.en_data_path, config.fr_data_path, config.N, config.seq);
@@ -245,39 +245,30 @@ void train_and_save_tokenizer(TrainingConfig config) {
     tokenizer->save(config.tokenizer_path);
 }
 
-void init_and_save_model(TrainingConfig config, int vocab_size) {
-    TransformerNetwork* transformer_network = new TransformerNetwork(
-        config.num_encoder_layers, config.num_decoder_layers,
-        config.seq, config.d_model, config.h,
-        vocab_size, new Relu(), new AdamOptimizer(nullptr, config.learning_rate, config.beta1, config.beta2)
-    );
-    transformer_network->save_model(config.model_path);
-}
-
-void train_test_translation() {
-    TrainingConfig cfg;
-    chrono::time_point<chrono::high_resolution_clock> start, end;
-
-    // Train tokenizer and save at cfg.tokenizer_path
-    // train_and_save_tokenizer(cfg);
-    
+void init_transformer_model(TrainingConfig& cfg) {
     // Load tokenizer
     BPETokenizer* tokenizer = new BPETokenizer;
     tokenizer->load(cfg.tokenizer_path);
-    // test_tokenizer(tokenizer);
-    
-    // Initialize model and save at cfg.model_path
-    // init_and_save_model(cfg, tokenizer->get_vocab_size());
+    TransformerNetwork* transformer_network = new TransformerNetwork(
+        cfg.num_encoder_layers, cfg.num_decoder_layers,
+        cfg.seq, cfg.d_model, cfg.h,
+        tokenizer->get_vocab_size(), new Relu(), new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2)
+    );
+    transformer_network->save_model(cfg.model_path);
+}
 
-    // Load and train model
+void train_transformer_model(TrainingConfig& cfg, bool save_transformer_model=true, bool infer_test_data=true) {
+    // Load tokenizer
+    BPETokenizer* tokenizer = new BPETokenizer;
+    tokenizer->load(cfg.tokenizer_path);
+
+    // Load model
     ActivationFunction* activation = new Relu();
     Optimizer* optimizer = new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2);
     TransformerNetwork* transformer_network = new TransformerNetwork(cfg.model_path, activation, optimizer);
     transformer_network->get_optimizer()->update_optimizer();
-
-    transformer_network->infer_live(tokenizer);
-    return;
-
+    
+    chrono::time_point<chrono::high_resolution_clock> start, end;
     // Load and split dataset
     start = chrono::high_resolution_clock::now();
     vector<vector<int>> en_tokens, fr_tokens;
@@ -290,7 +281,6 @@ void train_test_translation() {
     } else {
         cout << "Cache not found. Tokenizing sentences" << endl;
         tie(en_tokens, fr_tokens) = load_tokenized_sentences_from_parallel_files(cfg.en_data_path, cfg.fr_data_path, *tokenizer, cfg.N, cfg.seq);
-        // Save to cache for next time
         save_tokenized_data(cfg.tokenized_cache_path, en_tokens, fr_tokens);
     }
 
@@ -308,10 +298,17 @@ void train_test_translation() {
          << " ; d_model=" << cfg.d_model << " ; h=" << cfg.h << endl;
     cout << "Time: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 
-    // Save model
-    transformer_network->save_model(cfg.model_path);
+    if (save_transformer_model) transformer_network->save_model(cfg.model_path);
+    if (infer_test_data) transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
+}
 
-    // Run inference on test set
-    transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
-
+void infer_live_translation(TrainingConfig& cfg) {
+    // Load tokenizer
+    BPETokenizer* tokenizer = new BPETokenizer;
+    tokenizer->load(cfg.tokenizer_path);
+    // Load model
+    ActivationFunction* activation = new Relu();
+    Optimizer* optimizer = new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2);
+    TransformerNetwork* transformer_network = new TransformerNetwork(cfg.model_path, activation, optimizer);
+    transformer_network->infer_live(tokenizer);
 }

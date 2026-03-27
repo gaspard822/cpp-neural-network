@@ -81,14 +81,14 @@ class Layer {
 
         /**
          * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
-         * @return string Name of the loss function
+         * @return string Name of the layer
          */
         virtual string get_layer_name() const = 0;
 
         /**
          * Returns the name of the activation function used by the layer (used in save_model(const string& path) and
          * load_model(const string& path)).
-         * @return string Name of the loss function
+         * @return string Name of the layer's activation function
          */
         virtual string get_activation_name() const = 0;
 

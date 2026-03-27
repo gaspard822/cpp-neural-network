@@ -31,8 +31,6 @@ AdamState& AdamOptimizer::get_or_create_state(double* key, Index rows, Index col
 }
 
 void AdamOptimizer::update_optimizer() {
-    // Optional: pre-create state entries for all parameters.
-    if (network->get_type() == NetworkType::TRANSFORMER) cout << "Transformer" << endl;
     vector<Layer*> layers = network->get_layers();
     for (Layer* layer : layers) {
         for (const auto& p : layer->get_parameters()) {

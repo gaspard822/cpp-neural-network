@@ -97,8 +97,7 @@ const MatrixXd& TransformerNetwork::forward(const vector<int>& encoder_token_ids
 
     decoder_input_layer->forward(decoder_token_ids);
     const MatrixXd* decoder_output = &decoder_input_layer->get_output();
-    // Get the decoder's embeddings corresponding to the given text
-    // Forward that embedding into the encoders
+    // Forward that embedding into the decoders
     for (Decoder* decoder: decoders) {
         decoder->forward(*encoder_output, *decoder_output);
         decoder_output = &decoder->get_output();
@@ -145,11 +144,9 @@ void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPE
     
         int last_token = BPETokenizer::SOS_ID;
         vector<int> predicted_tokens = {last_token};
-        int max_size = seq;
-        while ((last_token != BPETokenizer::EOS_ID) && (predicted_tokens.size() < max_size)) {
+        while ((last_token != BPETokenizer::EOS_ID) && (predicted_tokens.size() < seq)) {
             MatrixXd decoder_output = decoder_input_layer->infer(predicted_tokens);
-            // Get the decoder's embeddings corresponding to the given text
-            // Forward that embedding into the encoders
+            // Forward that embedding into the decoders
             for (Decoder* decoder: decoders) {
                 decoder_output = decoder->infer(encoder_output, decoder_output);
             }
@@ -214,7 +211,7 @@ double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_
 void TransformerNetwork::reset_gradients() {
     for (Layer* layer: layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            auto gradients = p.grad().setZero();
+            p.grad().setZero();
         }
     }
 }
