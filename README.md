@@ -81,14 +81,6 @@ The model is available in the repository at models/final_model.txt.
 
 For detailed explanations, equations, and implementation notes, please refer to [technical_details.pdf](technical_details.pdf).
 
-### Future work
-Potential future improvements include:
-- Dropout regularization
-- L1/L2 regularization
-- Parallelization
-- GPU acceleration (possibly via a graphics API)
-- Support for additional architectures
-
 ### License
 
 This project is licensed under the MIT License.  
