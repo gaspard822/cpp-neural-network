@@ -192,7 +192,7 @@ void train_test_mnist() {
     cout << "Time for splitting the data: " << chrono::duration_cast<chrono::milliseconds>(split_time_end - split_time_start).count() << "ms" << endl;
     
     // Create a neural network using cross-entropy as a loss function and adam as an optimizer
-    MultiLayerPerceptronNetwork mlp("CrossEntropy", "Adam");
+    MultiLayerPerceptronNetwork mlp("CrossEntropy", "VanillaSGD");
 
     // Create layers and add them to the network
     FullyConnectedLayer* layer_1 = new FullyConnectedLayer(new Relu(), 784, 512);
@@ -206,7 +206,7 @@ void train_test_mnist() {
     mlp.get_optimizer()->update_optimizer();
     
     // Train
-    mlp.train(X_train, Y_train, 30, 1024, X_val, Y_val, false, false);
+    mlp.train(X_train, Y_train, 300, 1024, X_val, Y_val, false, false);
 
     // Saving the model and loading it again to test the save_model() and load_model() functions
     // Save the trained model

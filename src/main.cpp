@@ -8,11 +8,11 @@ using namespace std;
 
 int main() {
 
-    // train_test_mnist();
-    // infer_mnist();
+    train_test_mnist();
+    infer_mnist();
 
-    TrainingConfig cfg;
-    infer_live_translation(cfg);
+    // TrainingConfig cfg;
+    // infer_live_translation(cfg);
 
     return 0;
 }

@@ -34,8 +34,6 @@ class VanillaSGDOptimizer : public Optimizer {
          * @param layer_index Index of the layer in the network
          */
         void update_parameters() const override;
-        void update_parameters_mlp(MultiLayerPerceptronNetwork* mlp) const;
-        void update_parameters_transformer(TransformerNetwork* transformer) const;
 
         /**
          * Returns the type of optimizer (Vanilla SGD).

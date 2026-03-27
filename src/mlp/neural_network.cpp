@@ -35,7 +35,7 @@ MultiLayerPerceptronNetwork::MultiLayerPerceptronNetwork(const string& loss, con
     }
 
     if (optim == "VanillaSGD") {
-        optimizer = new VanillaSGDOptimizer(this, 0.02);
+        optimizer = new VanillaSGDOptimizer(this, 0.2);
     } else if (optim == "Adam") {
         optimizer = new AdamOptimizer(this);
     } else {
