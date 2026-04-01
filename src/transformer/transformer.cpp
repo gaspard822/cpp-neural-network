@@ -90,28 +90,7 @@ pair<vector<vector<int>>, vector<vector<int>>> preprocess_decoder_token_ids(cons
     return {decoder_input_token_ids, decoder_target_token_ids};
 }
 
-const MatrixXd& TransformerNetwork::forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids) {
-    encoder_input_layer->forward(encoder_token_ids);
-    const MatrixXd* encoder_output = &encoder_input_layer->get_output();
-    // Forward that embedding into the encoders
-    for (Encoder* encoder: encoders) {
-        encoder->forward(*encoder_output);
-        encoder_output = &encoder->get_output();
-    }
-
-    decoder_input_layer->forward(decoder_token_ids);
-    const MatrixXd* decoder_output = &decoder_input_layer->get_output();
-    // Forward that embedding into the decoders
-    for (Decoder* decoder: decoders) {
-        decoder->forward(*encoder_output, *decoder_output);
-        decoder_output = &decoder->get_output();
-    }
-
-    linear_layer->forward(*decoder_output);
-    return linear_layer->get_output();
-}
-
-const mx::array& TransformerNetwork::forward_mlx(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids) {
+const mx::array& TransformerNetwork::forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids) {
     encoder_input_layer->forward_mlx(encoder_token_ids);
     const mx::array* encoder_output = &encoder_input_layer->get_output_mlx();
     // Forward that embedding into the encoders
@@ -132,31 +111,7 @@ const mx::array& TransformerNetwork::forward_mlx(const vector<int>& encoder_toke
     return linear_layer->get_output_mlx();
 }
 
-const MatrixXd& TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_pred) {
-    MatrixXd d_loss = cross_entropy_loss->derivative(y_true, y_pred);
-    const MatrixXd* decoder_d_input = &d_loss;
-    linear_layer->backward(*decoder_d_input);
-    decoder_d_input = &linear_layer->get_d_input();
-
-    int num_encoder_tokens = encoders[encoders.size()-1]->get_output().rows();
-    MatrixXd encoder_d_input_buf = MatrixXd::Zero(num_encoder_tokens, d_model);
-    for (int i = num_decoder_layers - 1; i >= 0; i--) {
-        decoders[i]->backward(*decoder_d_input);
-        decoder_d_input = &decoders[i]->get_d_input();
-        encoder_d_input_buf += decoders[i]->get_d_encoder_input();
-    }
-    decoder_input_layer->backward(*decoder_d_input);
-
-    const MatrixXd* encoder_d_input = &encoder_d_input_buf;
-    for (int i = num_encoder_layers - 1; i >= 0; i--) {
-        encoders[i]->backward(*encoder_d_input);
-        encoder_d_input = &encoders[i]->get_d_input();
-    }
-    encoder_input_layer->backward(*encoder_d_input);
-    return *encoder_d_input;
-}
-
-const mx::array& TransformerNetwork::backward_mlx(const vector<int>& y_true, const mx::array& y_pred) {
+const mx::array& TransformerNetwork::backward(const vector<int>& y_true, const mx::array& y_pred) {
     mx::array d_loss = eigen_to_mlx(cross_entropy_loss->derivative(y_true, mlx_to_eigen(y_pred)));
     const mx::array* decoder_d_input = &d_loss;
     linear_layer->backward_mlx(*decoder_d_input);
@@ -186,24 +141,25 @@ void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPE
 
     int N = encoder_token_ids.size();
     for (int i = 0; i < N; i++) {
-        MatrixXd encoder_output = encoder_input_layer->infer(encoder_token_ids[i]);
+        mx::array encoder_output = encoder_input_layer->infer_mlx(encoder_token_ids[i]);
         // Forward that embedding into the encoders
         for (Encoder* encoder: encoders) {
-            encoder_output = encoder->infer(encoder_output);
+            encoder_output = encoder->infer_mlx(encoder_output);
         }
     
         int last_token = BPETokenizer::SOS_ID;
         vector<int> predicted_tokens = {last_token};
         while ((last_token != BPETokenizer::EOS_ID) && (predicted_tokens.size() < seq)) {
-            MatrixXd decoder_output = decoder_input_layer->infer(predicted_tokens);
+            mx::array decoder_output = decoder_input_layer->infer_mlx(predicted_tokens);
             // Forward that embedding into the decoders
             for (Decoder* decoder: decoders) {
-                decoder_output = decoder->infer(encoder_output, decoder_output);
+                decoder_output = decoder->infer_mlx(encoder_output, decoder_output);
             }
     
-            MatrixXd linear_layer_output = linear_layer->infer(decoder_output);
-            int last_row = linear_layer_output.rows() - 1;
-            linear_layer_output.row(last_row).maxCoeff(&last_token);
+            mx::array linear_layer_output = linear_layer->infer_mlx(decoder_output);
+            int last_row = linear_layer_output.shape(0) - 1;
+            mx::array last_row_probs = mx::slice(linear_layer_output, {last_row, 0}, {last_row + 1, linear_layer_output.shape(1)});
+            last_token = mx::argmax(last_row_probs, 1).item<int>();
             predicted_tokens.push_back(last_token);
         }
         string input_sentence = tokenizer->decode(encoder_token_ids[i]);
@@ -223,21 +179,22 @@ void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
 
         vector<int> encoder_token_ids = tokenizer->encode(line, true, true);
 
-        MatrixXd encoder_output = encoder_input_layer->infer(encoder_token_ids);
+        mx::array encoder_output = encoder_input_layer->infer_mlx(encoder_token_ids);
         for (Encoder* encoder : encoders) {
-            encoder_output = encoder->infer(encoder_output);
+            encoder_output = encoder->infer_mlx(encoder_output);
         }
 
         int last_token = BPETokenizer::SOS_ID;
         vector<int> predicted_tokens = {last_token};
         while (last_token != BPETokenizer::EOS_ID && predicted_tokens.size() < seq) {
-            MatrixXd decoder_output = decoder_input_layer->infer(predicted_tokens);
+            mx::array decoder_output = decoder_input_layer->infer_mlx(predicted_tokens);
             for (Decoder* decoder : decoders) {
-                decoder_output = decoder->infer(encoder_output, decoder_output);
+                decoder_output = decoder->infer_mlx(encoder_output, decoder_output);
             }
-            MatrixXd linear_layer_output = linear_layer->infer(decoder_output);
-            int last_row = linear_layer_output.rows() - 1;
-            linear_layer_output.row(last_row).maxCoeff(&last_token);
+            mx::array linear_layer_output = linear_layer->infer_mlx(decoder_output);
+            int last_row = linear_layer_output.shape(0) - 1;
+            mx::array last_row_probs = mx::slice(linear_layer_output, {last_row, 0}, {last_row + 1, linear_layer_output.shape(1)});
+            last_token = mx::argmax(last_row_probs, 1).item<int>();
             predicted_tokens.push_back(last_token);
         }
 
@@ -252,8 +209,8 @@ double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_
     for (int i = 0; i < N; i++) {
         const vector<int> decoder_input_token_ids(decoder_tokens_val[i].begin(), decoder_tokens_val[i].end() - 1);
         const vector<int> decoder_target_token_ids(decoder_tokens_val[i].begin() + 1, decoder_tokens_val[i].end());
-        MatrixXd forwarded_sentence = forward(encoder_tokens_val[i], decoder_input_token_ids);
-        loss += cross_entropy_loss->compute(decoder_target_token_ids, forwarded_sentence);
+        mx::array forwarded_sentence = forward(encoder_tokens_val[i], decoder_input_token_ids);
+        loss += cross_entropy_loss->compute(decoder_target_token_ids, mlx_to_eigen(forwarded_sentence));
     }
     return loss / N;
 }
@@ -304,7 +261,7 @@ void TransformerNetwork::train(
                 const vector<int>& encoder_token_ids = encoder_tokens_train[idx];
                 const vector<int>& decoder_input_token_ids = decoder_input_token_ids_train[idx];
                 const vector<int>& decoder_target_token_ids = decoder_target_token_ids_train[idx];
-                const MatrixXd& forwarded = forward(encoder_token_ids, decoder_input_token_ids);
+                const mx::array& forwarded = forward(encoder_token_ids, decoder_input_token_ids);
                 backward(decoder_target_token_ids, forwarded);
             }
             normalize_gradients(end - start);

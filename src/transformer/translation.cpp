@@ -1,10 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include "transformer/transformer.hpp"
+#include "transformer/bpe_tokenizer.hpp"
 #include "core/relu.hpp"
 #include "core/cross_entropy_loss.hpp"
 #include "core/adam_optimizer.hpp"
-#include "transformer/bpe_tokenizer.hpp"
 
 struct TrainingConfig {
     // Model architecture

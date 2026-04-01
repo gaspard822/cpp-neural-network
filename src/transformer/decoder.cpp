@@ -96,6 +96,16 @@ MatrixXd Decoder::infer(const MatrixXd& encoder_input, const MatrixXd& decoder_i
     return ff->infer(x_norm3) + after_cross;
 }
 
+mx::array Decoder::infer_mlx(const mx::array& encoder_input, const mx::array& decoder_input) {
+    mha_cross->set_encoder_output_mlx(encoder_input);
+    mx::array x_norm1 = ln1->infer_mlx(decoder_input);
+    mx::array after_masked = mha_masked->infer_mlx(x_norm1) + decoder_input;
+    mx::array x_norm2 = ln2->infer_mlx(after_masked);
+    mx::array after_cross = mha_cross->infer_mlx(x_norm2) + after_masked;
+    mx::array x_norm3 = ln3->infer_mlx(after_cross);
+    return ff->infer_mlx(x_norm3) + after_cross;
+}
+
 const MatrixXd& Decoder::get_output() const {
     return output;
 }

@@ -69,6 +69,13 @@ MatrixXd Encoder::infer(const MatrixXd& input) {
     return ff->infer(x_norm2) + after_attn;
 }
 
+mx::array Encoder::infer_mlx(const mx::array& input) {
+    mx::array x_norm1 = ln1->infer_mlx(input);
+    mx::array after_attn = mha_self->infer_mlx(x_norm1) + input;
+    mx::array x_norm2 = ln2->infer_mlx(after_attn);
+    return ff->infer_mlx(x_norm2) + after_attn;
+}
+
 const MatrixXd& Encoder::get_output() const {
     return output;
 }

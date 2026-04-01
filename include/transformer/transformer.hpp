@@ -43,10 +43,8 @@ class TransformerNetwork : public Network {
         // Helper that initializes layers (called by both constructors)
         void init_layers();
 
-        const MatrixXd& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
-        const mlx::core::array& forward_mlx(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
-        const MatrixXd& backward(const vector<int>& y_true, const MatrixXd& y_pred);
-        const mlx::core::array& backward_mlx(const vector<int>& y_true, const mlx::core::array& y_pred);
+        const mlx::core::array& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
+        const mlx::core::array& backward(const vector<int>& y_true, const mlx::core::array& y_pred);
         void infer(const vector<vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const string& csv_path) const;
         void infer_live(BPETokenizer* tokenizer) const;
         double compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val);

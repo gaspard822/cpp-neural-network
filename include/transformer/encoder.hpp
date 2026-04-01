@@ -26,7 +26,7 @@ class Encoder {
         void backward(const MatrixXd& d_output);
         void backward_mlx(const mlx::core::array& d_output);
         MatrixXd infer(const MatrixXd& input);
-        mlx::core::array infer(const mlx::core::array& input);
+        mlx::core::array infer_mlx(const mlx::core::array& input);
         const MatrixXd& get_output() const;
         const mlx::core::array& get_output_mlx() const;
         const MatrixXd& get_d_input() const;
