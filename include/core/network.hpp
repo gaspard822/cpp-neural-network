@@ -2,6 +2,7 @@
 #define NETWORK_HPP
 
 #include <Eigen/Dense>
+#include <mlx/mlx.h>
 #include <core/loss_function.hpp>
 #include <core/optimizer.hpp>
 
@@ -24,8 +25,6 @@ class Network {
          * @param new_network Pointer to the network to be optimized
          */
         Network(LossFunction* loss, Optimizer* optim);
-
-        // TODO: Need to add forward(), backward(), train(), infer(), however, we call it with matrices for the MLP, but with text for the transformers
 
         /**
          * Saves the model's architecture and parameters to a .txt file.

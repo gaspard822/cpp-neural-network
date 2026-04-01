@@ -1,8 +1,14 @@
 #include <iostream>
 #include <fstream>
 #include "transformer/linear_layer.hpp"
+#include "core/mlx_utils.hpp"
 
-LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_size(vocab_size) {
+namespace mx = mlx::core;
+
+LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_size(vocab_size),
+                                                        X_mlx(mx::zeros({1, 1}, mx::float32)),
+                                                        W_mlx(mx::zeros({d_model, vocab_size}, mx::float32)), d_W_mlx(mx::zeros({d_model, vocab_size}, mx::float32)),
+                                                        b_mlx(mx::zeros({1, vocab_size}, mx::float32)), d_b_mlx(mx::zeros({1, vocab_size}, mx::float32)) {
     
     W = MatrixXd::Random(d_model, vocab_size);
     // Glorot initialization
@@ -15,6 +21,8 @@ LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_
     d_b = RowVectorXd(vocab_size);
 
     params = {TrainableParameter(W, d_W), TrainableParameter(b, d_b)};
+
+    W_mlx = eigen_to_mlx(W);
 }
 
 void LinearLayer::forward(const MatrixXd& input) {
@@ -23,14 +31,30 @@ void LinearLayer::forward(const MatrixXd& input) {
     output = (input * W).rowwise() + b;
 }
 
+void LinearLayer::forward_mlx(const mx::array& input) {
+    // input : (num_tokens, d_model)
+    X_mlx = input;
+    output_mlx = mx::matmul(input, W_mlx) + b_mlx;
+}
+
 void LinearLayer::backward(const MatrixXd& d_output) {
     d_W += X.transpose() * d_output;
     d_b += d_output.colwise().sum();
     d_input = d_output * W.transpose();
 }
 
+void LinearLayer::backward_mlx(const mlx::core::array& d_output) {
+    d_W_mlx = d_W_mlx + mx::matmul(mx::transpose(X_mlx), d_output);
+    d_b_mlx = d_b_mlx + mx::sum(d_output, 0, true);
+    d_input_mlx = mx::matmul(d_output, mx::transpose(W_mlx));
+}
+
 MatrixXd LinearLayer::infer(const MatrixXd& input) const {
     return (input * W).rowwise() + b;
+}
+
+mx::array LinearLayer::infer_mlx(const mx::array& input) const {
+    return mx::matmul(input, W_mlx) + b_mlx;
 }
 
 const vector<TrainableParameter>& LinearLayer::get_parameters() const {
@@ -41,8 +65,16 @@ const MatrixXd& LinearLayer::get_output() const {
     return output;
 }
 
+const mx::array& LinearLayer::get_output_mlx() const {
+    return output_mlx;
+}
+
 const MatrixXd& LinearLayer::get_d_input() const {
     return d_input;
+}
+
+const mx::array& LinearLayer::get_d_input_mlx() const {
+    return d_input_mlx;
 }
 
 string LinearLayer::get_layer_name() const {

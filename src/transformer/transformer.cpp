@@ -1,8 +1,12 @@
 #include <iostream>
 #include <fstream>
+#include <chrono>
 #include <random>
 #include "transformer/transformer.hpp"
 #include "transformer/bpe_tokenizer.hpp"
+#include "core/mlx_utils.hpp"
+
+namespace mx = mlx::core;
 
 void TransformerNetwork::init_layers() {
     d_k = d_v = d_model / h;
@@ -107,7 +111,28 @@ const MatrixXd& TransformerNetwork::forward(const vector<int>& encoder_token_ids
     return linear_layer->get_output();
 }
 
-void TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_pred) {
+const mx::array& TransformerNetwork::forward_mlx(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids) {
+    encoder_input_layer->forward_mlx(encoder_token_ids);
+    const mx::array* encoder_output = &encoder_input_layer->get_output_mlx();
+    // Forward that embedding into the encoders
+    for (Encoder* encoder: encoders) {
+        encoder->forward_mlx(*encoder_output);
+        encoder_output = &encoder->get_output_mlx();
+    }
+    
+    decoder_input_layer->forward_mlx(decoder_token_ids);
+    const mx::array* decoder_output = &decoder_input_layer->get_output_mlx();
+    // Forward that embedding into the decoders
+    for (Decoder* decoder: decoders) {
+        decoder->forward_mlx(*encoder_output, *decoder_output);
+        decoder_output = &decoder->get_output_mlx();
+    }
+    
+    linear_layer->forward_mlx(*decoder_output);
+    return linear_layer->get_output_mlx();
+}
+
+const MatrixXd& TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_pred) {
     MatrixXd d_loss = cross_entropy_loss->derivative(y_true, y_pred);
     const MatrixXd* decoder_d_input = &d_loss;
     linear_layer->backward(*decoder_d_input);
@@ -128,6 +153,31 @@ void TransformerNetwork::backward(const vector<int>& y_true, const MatrixXd& y_p
         encoder_d_input = &encoders[i]->get_d_input();
     }
     encoder_input_layer->backward(*encoder_d_input);
+    return *encoder_d_input;
+}
+
+const mx::array& TransformerNetwork::backward_mlx(const vector<int>& y_true, const mx::array& y_pred) {
+    mx::array d_loss = eigen_to_mlx(cross_entropy_loss->derivative(y_true, mlx_to_eigen(y_pred)));
+    const mx::array* decoder_d_input = &d_loss;
+    linear_layer->backward_mlx(*decoder_d_input);
+    decoder_d_input = &linear_layer->get_d_input_mlx();
+
+    int num_encoder_tokens = encoders[encoders.size()-1]->get_output_mlx().shape(0);
+    mx::array encoder_d_input_buf = mx::zeros({num_encoder_tokens, d_model}, mx::float32);
+    for (int i = num_decoder_layers - 1; i >= 0; i--) {
+        decoders[i]->backward_mlx(*decoder_d_input);
+        decoder_d_input = &decoders[i]->get_d_input_mlx();
+        encoder_d_input_buf = encoder_d_input_buf + decoders[i]->get_d_encoder_input_mlx();
+    }
+    decoder_input_layer->backward_mlx(*decoder_d_input);
+
+    const mx::array* encoder_d_input = &encoder_d_input_buf;
+    for (int i = num_encoder_layers - 1; i >= 0; i--) {
+        encoders[i]->backward_mlx(*encoder_d_input);
+        encoder_d_input = &encoders[i]->get_d_input_mlx();
+    }
+    encoder_input_layer->backward_mlx(*encoder_d_input);
+    return *encoder_d_input;
 }
 
 void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const string& csv_path) const {
@@ -325,4 +375,3 @@ Optimizer* TransformerNetwork::get_optimizer() const {
 NetworkType TransformerNetwork::get_type() const {
     return NetworkType::TRANSFORMER;
 }
-

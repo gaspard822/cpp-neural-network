@@ -5,8 +5,11 @@
 #include "core/sigmoid.hpp"
 #include "core/identity.hpp"
 
+namespace mx = mlx::core;
+
 Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
-    seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), d_ff(d_ff), activation(activation) {
+    seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), d_ff(d_ff), activation(activation),
+    output_mlx(mlx::core::zeros({1, 1}, mx::float32)), d_input_mlx(mlx::core::zeros({1, 1}, mx::float32)) {
 
     ln1 = new LayerNorm(seq, d_model);
     mha_self = new MultiHeadAttention(seq, d_model, h, d_k, d_v, AttentionMode::ENCODER_SELF);
@@ -17,7 +20,6 @@ Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
     layers.push_back(mha_self);
     layers.push_back(ln2);
     layers.push_back(ff);
-
 }
 
 void Encoder::forward(const MatrixXd& input) {
@@ -30,6 +32,16 @@ void Encoder::forward(const MatrixXd& input) {
     output = ff->get_output() + after_attn;
 }
 
+void Encoder::forward_mlx(const mx::array& input) {
+    ln1->forward_mlx(input);
+    mha_self->forward_mlx(ln1->get_output_mlx());
+    mx::array after_attn = mha_self->get_output_mlx() + input;
+
+    ln2->forward_mlx(after_attn);
+    ff->forward_mlx(ln2->get_output_mlx());
+    output_mlx = ff->get_output_mlx() + after_attn;
+}
+
 void Encoder::backward(const MatrixXd& d_output) {
     ff->backward(d_output);
     ln2->backward(ff->get_d_input());
@@ -38,6 +50,16 @@ void Encoder::backward(const MatrixXd& d_output) {
     mha_self->backward(d_after_attn);
     ln1->backward(mha_self->get_d_input());
     d_input = ln1->get_d_input() + d_after_attn;
+}
+
+void Encoder::backward_mlx(const mx::array& d_output) {
+    ff->backward_mlx(d_output);
+    ln2->backward_mlx(ff->get_d_input_mlx());
+    mx::array d_after_attn = ln2->get_d_input_mlx() + d_output;
+
+    mha_self->backward_mlx(d_after_attn);
+    ln1->backward_mlx(mha_self->get_d_input_mlx());
+    d_input_mlx = ln1->get_d_input_mlx() + d_after_attn;
 }
 
 MatrixXd Encoder::infer(const MatrixXd& input) {
@@ -51,8 +73,16 @@ const MatrixXd& Encoder::get_output() const {
     return output;
 }
 
+const mx::array& Encoder::get_output_mlx() const {
+    return output_mlx;
+}
+
 const MatrixXd& Encoder::get_d_input() const {
     return d_input;
+}
+
+const mx::array& Encoder::get_d_input_mlx() const {
+    return d_input_mlx;
 }
 
 const vector<Layer*>& Encoder::get_layers() {

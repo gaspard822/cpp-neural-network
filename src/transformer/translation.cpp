@@ -8,8 +8,8 @@
 
 struct TrainingConfig {
     // Model architecture
-    int num_encoder_layers = 3;
-    int num_decoder_layers = 3;
+    int num_encoder_layers = 1;
+    int num_decoder_layers = 1;
     int seq = 256;
     int d_model = 256;
     int h = 4;
@@ -31,8 +31,8 @@ struct TrainingConfig {
     string en_data_path = "../translation/news-commentary-v9.fr-en.en";
     string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
     string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
-    string model_path = "../transformer_models/saved_model_new.txt";
-    string output_path = "../translation/output_epoch_4.csv";
+    string model_path = "../transformer_models/saved_model_tmp.txt";
+    string output_path = "../translation/output_epoch_tmp.csv";
     string tokenized_cache_path = "../transformer_models/tokenized_cache.bin";
 };
 

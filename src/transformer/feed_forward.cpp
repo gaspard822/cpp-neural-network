@@ -1,9 +1,17 @@
 #include <iostream>
 #include <fstream>
 #include "transformer/feed_forward.hpp"
+#include "core/mlx_utils.hpp"
 
-FeedForward::FeedForward(ActivationFunction* activation,
-                         int seq, int d_model, int d_ff) : activation(activation), seq(seq), d_model(d_model), d_ff(d_ff) {
+namespace mx = mlx::core;
+
+FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, int d_ff) :
+                        activation(activation), seq(seq), d_model(d_model), d_ff(d_ff),
+                        X_mlx(mx::zeros({1, 1}, mx::float32)), U_mlx(mx::zeros({1, 1}, mx::float32)), H_mlx(mx::zeros({1, 1}, mx::float32)),
+                        W1_mlx(mx::zeros({d_model, d_ff}, mx::float32)), W2_mlx(mx::zeros({d_ff, d_model}, mx::float32)),
+                        d_W1_mlx(mx::zeros({d_model, d_ff}, mx::float32)), d_W2_mlx(mx::zeros({d_ff, d_model}, mx::float32)),
+                        b1_mlx(mx::zeros({1, d_ff}, mx::float32)), b2_mlx(mx::zeros({1, d_model}, mx::float32)),
+                        d_b1_mlx(mx::zeros({1, d_ff}, mx::float32)), d_b2_mlx(mx::zeros({1, d_model}, mx::float32)) {
     
     W1 = MatrixXd::Random(d_model, d_ff);
     W2 = MatrixXd::Random(d_ff, d_model);
@@ -29,6 +37,9 @@ FeedForward::FeedForward(ActivationFunction* activation,
     d_b2 = RowVectorXd(d_model);
 
     params = {TrainableParameter(W1, d_W1), TrainableParameter(b1, d_b1), TrainableParameter(W2, d_W2), TrainableParameter(b2, d_b2)};
+
+    W1_mlx = eigen_to_mlx(W1);
+    W2_mlx = eigen_to_mlx(W2);
 }
 
 void FeedForward::forward(const MatrixXd& input) {
@@ -37,6 +48,14 @@ void FeedForward::forward(const MatrixXd& input) {
     U = (input * W1).rowwise() + b1;
     H = activation->apply(U);
     output = (H * W2).rowwise() + b2;
+}
+
+void FeedForward::forward_mlx(const mx::array& input) {
+    // input : (num_tokens, d_model)
+    X_mlx = input;
+    U_mlx = mx::matmul(input, W1_mlx) + b1_mlx;
+    H_mlx = eigen_to_mlx(activation->apply(mlx_to_eigen(U_mlx)));
+    output_mlx = mx::matmul(H_mlx, W2_mlx) + b2_mlx;
 }
 
 void FeedForward::backward(const MatrixXd& d_output) {
@@ -48,10 +67,25 @@ void FeedForward::backward(const MatrixXd& d_output) {
     d_input = d_U * W1.transpose();
 }
 
+void FeedForward::backward_mlx(const mx::array& d_output) {
+    d_W2_mlx = d_W2_mlx + mx::matmul(mx::transpose(H_mlx), d_output);
+    d_b2_mlx = d_b2_mlx + mx::sum(d_output, 0, true);
+    mx::array d_U_mlx = mx::matmul(d_output, mx::transpose(W2_mlx)) * eigen_to_mlx(activation->derivative(mlx_to_eigen(U_mlx)));
+    d_W1_mlx = d_W1_mlx + mx::matmul(mx::transpose(X_mlx), d_U_mlx);
+    d_b1_mlx = d_b1_mlx + mx::sum(d_U_mlx, 0, true);
+    d_input_mlx = mx::matmul(d_U_mlx, mx::transpose(W1_mlx));
+}
+
 MatrixXd FeedForward::infer(const MatrixXd& input) const {
     MatrixXd U_tmp = (input * W1).rowwise() + b1;
     MatrixXd H_tmp = activation->apply(U_tmp);
     return (H_tmp * W2).rowwise() + b2;
+}
+
+mx::array FeedForward::infer_mlx(const mx::array& input) const {
+    mx::array U_tmp_mlx = mx::matmul(input, W1_mlx) + b1_mlx;
+    mx::array H_tmp_mlx = eigen_to_mlx(activation->apply(mlx_to_eigen(U_tmp_mlx)));
+    return mx::matmul(H_tmp_mlx, W2_mlx) + b2_mlx;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {
@@ -62,8 +96,16 @@ const MatrixXd& FeedForward::get_output() const {
     return output;
 }
 
+const mx::array& FeedForward::get_output_mlx() const {
+    return output_mlx;
+}
+
 const MatrixXd& FeedForward::get_d_input() const {
     return d_input;
+}
+
+const mx::array& FeedForward::get_d_input_mlx() const {
+    return d_input_mlx;
 }
 
 string FeedForward::get_layer_name() const {

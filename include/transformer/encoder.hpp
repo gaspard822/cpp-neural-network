@@ -15,15 +15,22 @@ class Encoder {
         vector<Layer*> layers;
         ActivationFunction* activation;
         MatrixXd output;
+        mlx::core::array output_mlx;
         MatrixXd d_input;
+        mlx::core::array d_input_mlx;
         
     public:
         Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);
         void forward(const MatrixXd& input);
+        void forward_mlx(const mlx::core::array& input);
         void backward(const MatrixXd& d_output);
+        void backward_mlx(const mlx::core::array& d_output);
         MatrixXd infer(const MatrixXd& input);
+        mlx::core::array infer(const mlx::core::array& input);
         const MatrixXd& get_output() const;
+        const mlx::core::array& get_output_mlx() const;
         const MatrixXd& get_d_input() const;
+        const mlx::core::array& get_d_input_mlx() const;
         const vector<Layer*>& get_layers();
 
         void save(ofstream& file) const;

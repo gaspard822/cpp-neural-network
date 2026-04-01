@@ -1,9 +1,14 @@
 #include <iostream>
 #include <fstream>
 #include "transformer/multi_head_attention.hpp"
+#include "core/mlx_utils.hpp"
+
+namespace mx = mlx::core;
 
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
-        seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), mode(mode) {
+        seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), mode(mode),
+        X_mlx(mx::zeros({1, 1}, mx::float32)), encoder_output_mlx(mx::zeros({1, 1}, mx::float32)), d_encoder_output_mlx(mx::zeros({1, 1}, mx::float32)),
+        forward_mask_mlx(mx::zeros({1, 1}, mx::float32)), backward_mask_mlx(mx::zeros({1, 1}, mx::float32)) {
     
     params = {};
     // Glorot initialization for the parameter matrices
@@ -24,11 +29,21 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
         WV[i] = MatrixXd::Random(d_model, d_v) * limit_d_v;
         WO[i] = MatrixXd::Random(d_v, d_model) * limit_d_v;
 
+        WQ_mlx.push_back(eigen_to_mlx(WQ[i]));
+        WK_mlx.push_back(eigen_to_mlx(WK[i]));
+        WV_mlx.push_back(eigen_to_mlx(WV[i]));
+        WO_mlx.push_back(eigen_to_mlx(WO[i]));
+
         // Initialize gradients
         d_WQ[i] = MatrixXd(d_model, d_k);
         d_WK[i] = MatrixXd(d_model, d_k);
         d_WV[i] = MatrixXd(d_model, d_v);
         d_WO[i] = MatrixXd(d_v, d_model);
+
+        d_WQ_mlx.push_back(mx::zeros({d_model, d_k}, mx::float32));
+        d_WK_mlx.push_back(mx::zeros({d_model, d_k}, mx::float32));
+        d_WV_mlx.push_back(mx::zeros({d_model, d_v}, mx::float32));
+        d_WO_mlx.push_back(mx::zeros({d_v, d_model}, mx::float32));
         
         // Add parameters matrices to params
         params.push_back(TrainableParameter(WQ[i], d_WQ[i]));
@@ -52,6 +67,17 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
         // Backward mask: lower triangle filled with 1, upper triangle is 0
         backward_mask = MatrixXd::Zero(seq, seq);
         backward_mask.triangularView<Lower>().setOnes();
+    }
+
+    Q_mlx.assign(h, mx::zeros({1, 1}, mx::float32));
+    K_mlx.assign(h, mx::zeros({1, 1}, mx::float32));
+    V_mlx.assign(h, mx::zeros({1, 1}, mx::float32));
+    softmaxJ_mlx.assign(h, mx::zeros({1, 1}, mx::float32));
+    head_mlx.assign(h, mx::zeros({1, 1}, mx::float32));
+
+    if (is_masked_attention()) {
+        forward_mask_mlx = eigen_to_mlx(forward_mask);
+        backward_mask_mlx = eigen_to_mlx(backward_mask);
     }
 }
 
@@ -91,6 +117,30 @@ void MultiHeadAttention::forward(const MatrixXd& input) {
     }
 }
 
+void MultiHeadAttention::forward_mlx(const mx::array& input) {
+    int num_q_tokens = input.shape(0);
+    int num_kv_tokens = is_cross_attention() ? encoder_output_mlx.shape(0) : input.shape(0);
+    X_mlx = input;
+    output_mlx = mx::zeros({num_q_tokens, d_model}, mx::float32);
+    for (int i = 0; i < h; i++) {
+        Q_mlx[i] = mx::matmul(input, WQ_mlx[i]);
+        if (!is_cross_attention()) {
+            K_mlx[i] = mx::matmul(input, WK_mlx[i]);
+            V_mlx[i] = mx::matmul(input, WV_mlx[i]);
+        } else {
+            K_mlx[i] = mx::matmul(encoder_output_mlx, WK_mlx[i]);
+            V_mlx[i] = mx::matmul(encoder_output_mlx, WV_mlx[i]);
+        }
+        mx::array scores = mx::matmul(Q_mlx[i], mx::transpose(K_mlx[i])) * (1.0f / sqrt((float)d_k));
+        if (is_masked_attention()) {
+            scores = scores + mx::slice(forward_mask_mlx, {0, 0}, {num_q_tokens, num_kv_tokens});
+        }
+        softmaxJ_mlx[i] = mx::softmax(scores, -1);
+        head_mlx[i] = mx::matmul(softmaxJ_mlx[i], V_mlx[i]);
+        output_mlx = output_mlx + mx::matmul(head_mlx[i], WO_mlx[i]);
+    }
+}
+
 void MultiHeadAttention::backward(const MatrixXd& d_output) {
     int num_q_tokens = X.rows();
     int num_kv_tokens;
@@ -125,6 +175,43 @@ void MultiHeadAttention::backward(const MatrixXd& d_output) {
             d_WV[i] += encoder_output.transpose() * d_V;
             d_input += d_Q * WQ[i].transpose();
             d_encoder_output += d_K * WK[i].transpose() + d_V * WV[i].transpose();
+        }
+    }
+}
+
+void MultiHeadAttention::backward_mlx(const mx::array& d_output) {
+    int num_q_tokens = X_mlx.shape(0);
+    int num_kv_tokens = is_cross_attention() ? encoder_output_mlx.shape(0) : X_mlx.shape(0);
+    d_input_mlx = mx::zeros({num_q_tokens, d_model}, mx::float32);
+    if (is_cross_attention()) d_encoder_output_mlx = mx::zeros({num_kv_tokens, d_model}, mx::float32);
+    for (int i = 0; i < h; i++) {
+        mx::array d_head = mx::matmul(d_output, mx::transpose(WO_mlx[i]));
+        d_WO_mlx[i] = d_WO_mlx[i] + mx::matmul(mx::transpose(head_mlx[i]), d_output);
+        mx::array d_softmaxJ = mx::matmul(d_head, mx::transpose(V_mlx[i]));
+        mx::array row_dot = mx::sum(d_softmaxJ * softmaxJ_mlx[i], 1, true);
+        mx::array d_J = softmaxJ_mlx[i] * (d_softmaxJ - row_dot);
+
+        if (is_masked_attention()) {
+            d_J = d_J * mx::slice(backward_mask_mlx, {0, 0}, {num_q_tokens, num_kv_tokens});
+        }
+
+        mx::array d_V = mx::matmul(mx::transpose(softmaxJ_mlx[i]), d_head);
+        mx::array d_K = mx::matmul(mx::transpose(d_J), Q_mlx[i]) * (1.0f / sqrt((float)d_k));
+        mx::array d_Q = mx::matmul(d_J, K_mlx[i]) * (1.0f / sqrt((float)d_k));
+        d_WQ_mlx[i] = d_WQ_mlx[i] + mx::matmul(mx::transpose(X_mlx), d_Q);
+        if (!is_cross_attention()) {
+            d_WK_mlx[i] = d_WK_mlx[i] + mx::matmul(mx::transpose(X_mlx), d_K);
+            d_WV_mlx[i] = d_WV_mlx[i] + mx::matmul(mx::transpose(X_mlx), d_V);
+            d_input_mlx = d_input_mlx + mx::matmul(d_Q, mx::transpose(WQ_mlx[i]))
+                        + mx::matmul(d_K, mx::transpose(WK_mlx[i]))
+                        + mx::matmul(d_V, mx::transpose(WV_mlx[i]));
+        } else {
+            d_WK_mlx[i] = d_WK_mlx[i] + mx::matmul(mx::transpose(encoder_output_mlx), d_K);
+            d_WV_mlx[i] = d_WV_mlx[i] + mx::matmul(mx::transpose(encoder_output_mlx), d_V);
+            d_input_mlx = d_input_mlx + mx::matmul(d_Q, mx::transpose(WQ_mlx[i]));
+            d_encoder_output_mlx = d_encoder_output_mlx
+                                 + mx::matmul(d_K, mx::transpose(WK_mlx[i]))
+                                 + mx::matmul(d_V, mx::transpose(WV_mlx[i]));
         }
     }
 }
@@ -171,8 +258,30 @@ MatrixXd MultiHeadAttention::infer(const MatrixXd& input) const {
     return output_tmp;
 }
 
+mx::array MultiHeadAttention::infer_mlx(const mx::array& input) const {
+    int num_q_tokens = input.shape(0);
+    int num_kv_tokens = is_cross_attention() ? encoder_output_mlx.shape(0) : input.shape(0);
+    mx::array output_tmp = mx::zeros({num_q_tokens, d_model}, mx::float32);
+    for (int i = 0; i < h; i++) {
+        mx::array Q_tmp = mx::matmul(input, WQ_mlx[i]);
+        mx::array K_tmp = is_cross_attention() ? mx::matmul(encoder_output_mlx, WK_mlx[i]) : mx::matmul(input, WK_mlx[i]);
+        mx::array V_tmp = is_cross_attention() ? mx::matmul(encoder_output_mlx, WV_mlx[i]) : mx::matmul(input, WV_mlx[i]);
+        mx::array scores = mx::matmul(Q_tmp, mx::transpose(K_tmp)) * (1.0f / sqrt((float)d_k));
+        if (is_masked_attention()) {
+            scores = scores + mx::slice(forward_mask_mlx, {0, 0}, {num_q_tokens, num_kv_tokens});
+        }
+        mx::array softmax_tmp = mx::softmax(scores, -1);
+        output_tmp = output_tmp + mx::matmul(mx::matmul(softmax_tmp, V_tmp), WO_mlx[i]);
+    }
+    return output_tmp;
+}
+
 void MultiHeadAttention::set_encoder_output(const MatrixXd& enc_out) {
     encoder_output = enc_out;
+}
+
+void MultiHeadAttention::set_encoder_output_mlx(const mx::array& enc_out) {
+    encoder_output_mlx = enc_out;
 }
 
 const vector<TrainableParameter>& MultiHeadAttention::get_parameters() const {
@@ -183,13 +292,26 @@ const MatrixXd& MultiHeadAttention::get_output() const {
     return output;
 }
 
+const mx::array& MultiHeadAttention::get_output_mlx() const {
+    return output_mlx;
+}
+
 const MatrixXd& MultiHeadAttention::get_d_input() const {
     return d_input;
+}
+
+const mx::array& MultiHeadAttention::get_d_input_mlx() const {
+    return d_input_mlx;
 }
 
 const MatrixXd& MultiHeadAttention::get_d_encoder_output() const {
     if (!is_cross_attention()) throw runtime_error("get_d_encoder_output() can only be called for cross-attention");
     return d_encoder_output;
+}
+
+const mx::array& MultiHeadAttention::get_d_encoder_output_mlx() const {
+    if (!is_cross_attention()) throw runtime_error("get_d_encoder_output_mlx() can only be called for cross-attention");
+    return d_encoder_output_mlx;
 }
 
 string MultiHeadAttention::get_layer_name() const {

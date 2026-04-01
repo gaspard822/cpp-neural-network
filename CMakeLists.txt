@@ -28,6 +28,7 @@ set(SOURCES
     src/core/cross_entropy_loss.cpp
     src/core/identity.cpp
     src/core/mean_squared_error_loss.cpp
+    src/core/mlx_utils.cpp
     src/core/network.cpp
     src/core/optimizer.cpp
     src/core/relu.cpp
@@ -48,5 +49,8 @@ set(SOURCES
 
 add_executable(basic_nn ${SOURCES})
 
-target_link_libraries(basic_nn PRIVATE OpenMP::OpenMP_CXX)
+find_library(MLX_LIB mlx PATHS /opt/homebrew/lib REQUIRED)
+include_directories(/opt/homebrew/include)
+
+target_link_libraries(basic_nn PRIVATE OpenMP::OpenMP_CXX ${MLX_LIB})
 target_compile_definitions(basic_nn PRIVATE EIGEN_USE_OPENMP)

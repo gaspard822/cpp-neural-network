@@ -2,6 +2,7 @@
 #define LAYER_HPP
 
 #include <Eigen/Dense>
+#include <mlx/mlx.h>
 #include <memory>
 
 using namespace Eigen;
@@ -49,9 +50,11 @@ enum class LayerType {
 class Layer {
     protected:
         MatrixXd d_input, output;
+        mlx::core::array d_input_mlx, output_mlx;
     
     public:
-        Layer() = default;
+        Layer() : d_input_mlx(mlx::core::zeros({1,1}, mlx::core::float32)),
+                  output_mlx(mlx::core::zeros({1,1}, mlx::core::float32)) {}
         virtual ~Layer() = default;
 
         /**
