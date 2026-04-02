@@ -1,82 +1,62 @@
 #include <iostream>
 #include "core/cross_entropy_loss.hpp"
 
-// y_true is the one-hot encoding and y_pred are the logits
-double CrossEntropy::compute(const MatrixXd& y_true, const MatrixXd& y_pred) const {
+using namespace std;
+namespace mx = mlx::core;
+
+double CrossEntropy::compute(const mx::array& y_true, const mx::array& y_pred) const {
     // Shift logits for numerical stability
-    MatrixXd z_max = y_pred.rowwise().maxCoeff();
-    MatrixXd shifted_logits = y_pred - z_max.replicate(1, y_pred.cols());
+    mx::array z_max = mx::max(y_pred, 1, true);
+    mx::array shifted = y_pred - z_max;
 
     // Compute log-sum-exp
-    MatrixXd exp_shifted = shifted_logits.array().exp();
-    VectorXd log_sum_exp = exp_shifted.rowwise().sum().array().log();
+    mx::array log_sum_exp = mx::log(mx::sum(mx::exp(shifted), 1, true));
 
     // Compute loss: -z_y + z_max + log(sum(exp))
-    // Multiply element-wise: only the correct class contributes (y_true is one-hot)
-    VectorXd true_logits = (y_true.array() * y_pred.array()).rowwise().sum();
-    VectorXd loss_vector = -true_logits.array() + z_max.array() + log_sum_exp.array();
-
-    // Average over batch
-    return loss_vector.mean();
+    mx::array true_logits = mx::sum(y_true * y_pred, 1, true);
+    return mx::mean(-true_logits + z_max + log_sum_exp).item<double>();
 }
 
-// y_true is the one-hot encoding and y_pred are the logits
-MatrixXd CrossEntropy::derivative(const MatrixXd& y_true, const MatrixXd& y_pred) const {
+mx::array CrossEntropy::derivative(const mx::array& y_true, const mx::array& y_pred) const {
     // Shift logits for numerical stability
-    MatrixXd z_max = y_pred.rowwise().maxCoeff();
-    MatrixXd shifted_logits = y_pred - z_max.replicate(1, y_pred.cols());
-
-    // Compute the exponents of the shifted logits and sum them over each sample
-    MatrixXd exp_shifted = shifted_logits.array().exp();
-    VectorXd sum_exp = exp_shifted.rowwise().sum();
-
-    // Compute the quotient of the shifted exponents divided by the sum over each sample
-    MatrixXd exp_quotient = exp_shifted.array().colwise() / sum_exp.array();
-
-    // Return this quotient minus the true labels divided by the number of samples
-    return (exp_quotient - y_true) / y_true.rows();
+    mx::array z_max = mx::max(y_pred, 1, true);
+    mx::array exp_shifted = mx::exp(y_pred - z_max);
+    mx::array softmax = exp_shifted / mx::sum(exp_shifted, 1, true);
+    return (softmax - y_true) / y_true.shape(0);
 }
 
 // Does the same computation as the other CrossEntropy::compute(), but doesn't need one-hot enoding
-double CrossEntropy::compute(const vector<int>& y_true, const MatrixXd& y_pred) const {
+double CrossEntropy::compute(const vector<int>& y_true, const mx::array& y_pred) const {
     int T = y_true.size();
-    double loss = 0.0;
+    int V = y_pred.shape(1);
 
-    for (int t = 0; t < T; t++) {
-        const RowVectorXd row = y_pred.row(t);
+    mx::array z_max = mx::max(y_pred, 1, true);
+    mx::array shifted = y_pred - z_max;
+    mx::array log_sum_exp = mx::log(mx::sum(mx::exp(shifted), 1, true));
 
-        // log-sum-exp trick
-        double max = row.maxCoeff();
-        RowVectorXd shifted_logits = row.array() - max;
-        double log_sum_exp = log(shifted_logits.array().exp().sum());
+    vector<int> flat_indices(T);
+    for (int t = 0; t < T; t++) flat_indices[t] = t * V + y_true[t];
+    mx::array flat_idx = mx::array(flat_indices.data(), {T}, mx::int32);
+    mx::array true_logits = mx::take(mx::reshape(y_pred, {T * V}), flat_idx);
 
-        loss += -row(y_true[t]) + max + log_sum_exp;
-    }
-
-    return loss / T;
+    mx::array loss = -true_logits + mx::reshape(z_max, {T}) + mx::reshape(log_sum_exp, {T});
+    return mx::mean(loss).item<double>();
 }
 
+mx::array CrossEntropy::derivative(const vector<int>& y_true, const mx::array& y_pred) const {
+    int T = y_true.size();
+    int V = y_pred.shape(1);
 
-MatrixXd CrossEntropy::derivative(const vector<int>& y_true, const MatrixXd& y_pred) const {
-    int num_true_tokens = y_true.size();
-    int vocab_size = y_pred.cols();
+    mx::array z_max = mx::max(y_pred, 1, true);
+    mx::array exp_shifted = mx::exp(y_pred - z_max);
+    mx::array softmax = exp_shifted / mx::sum(exp_shifted, 1, true);
 
-    MatrixXd grad = MatrixXd::Zero(num_true_tokens, vocab_size);
+    vector<float> one_hot_data(T * V, 0.0f);
+    for (int t = 0; t < T; t++) one_hot_data[t * V + y_true[t]] = 1.0f;
+    mx::array one_hot = mx::array(one_hot_data.data(), {T, V}, mx::float32);
 
-    for (int t = 0; t < num_true_tokens; t++) {
-        RowVectorXd row = y_pred.row(t);
-        double max = row.maxCoeff();
-        RowVectorXd exp_shifted = (row.array() - max).exp();
-        double sum_exp = exp_shifted.sum();
-        RowVectorXd exp_quotient = exp_shifted / sum_exp;
-
-        grad.row(t) = exp_quotient;
-        grad(t, y_true[t]) -= 1.0;
-    }
-
-    return grad / num_true_tokens;
+    return (softmax - one_hot) / T;
 }
-
 
 
 string CrossEntropy::get_loss_name() const {

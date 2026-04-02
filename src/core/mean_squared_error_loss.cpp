@@ -1,14 +1,15 @@
 #include <iostream>
 #include "core/mean_squared_error_loss.hpp"
 
-double MeanSquaredError::compute(const MatrixXd& y_true, const MatrixXd& y_pred) const {
-    return (y_true - y_pred).array().square().sum() / y_true.rows();
+using namespace std;
+namespace mx = mlx::core;
+
+double MeanSquaredError::compute(const mx::array& y_true, const mx::array& y_pred) const {
+    return mx::sum(mx::square(y_true - y_pred)).item<double>() / y_true.shape(0);
 }
 
-MatrixXd MeanSquaredError::derivative(const MatrixXd& y_true, const MatrixXd& y_pred) const {
-    // the derivative of (y_true - y_pred)^2 w.r.t. y_pred is
-    // -1 * 2(y_true - y_pred) = 2(y_pred - y_true)
-    return 2 * (y_pred - y_true) / y_true.rows();
+mx::array MeanSquaredError::derivative(const mx::array& y_true, const mx::array& y_pred) const {
+    return 2 * (y_pred - y_true) / y_true.shape(0);
 }
 
 string MeanSquaredError::get_loss_name() const {

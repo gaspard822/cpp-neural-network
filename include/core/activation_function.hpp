@@ -1,7 +1,6 @@
 #ifndef ACTIVATION_FUNCTION_HPP
 #define ACTIVATION_FUNCTION_HPP
 
-#include <Eigen/Dense>
 #include <mlx/mlx.h>
 
 
@@ -42,7 +41,7 @@ class ActivationFunction {
          * Returns the name of the activation function.
          * @return string Activation name
          */
-        virtual string get_activation_name() const = 0;
+        virtual std::string get_activation_name() const = 0;
 };
 
 #endif

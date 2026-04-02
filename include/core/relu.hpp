@@ -33,7 +33,7 @@ class Relu : public ActivationFunction {
          * Returns the name of the activation function.
          * @return string Activation name
          */
-        string get_activation_name() const override;
+        std::string get_activation_name() const override;
 };
 
 #endif

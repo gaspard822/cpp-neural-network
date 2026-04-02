@@ -1,7 +1,6 @@
 #ifndef NETWORK_HPP
 #define NETWORK_HPP
 
-#include <Eigen/Dense>
 #include <mlx/mlx.h>
 #include <core/loss_function.hpp>
 #include <core/optimizer.hpp>

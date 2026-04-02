@@ -38,14 +38,14 @@ void FeedForward::forward(const mx::array& input) {
     // input : (num_tokens, d_model)
     X = input;
     U = mx::matmul(input, W1) + b1;
-    H = eigen_to_mlx(activation->apply(mlx_to_eigen(U)));
+    H = activation->apply(U);
     output = mx::matmul(H, W2) + b2;
 }
 
 void FeedForward::backward(const mx::array& d_output) {
     d_W2 = d_W2 + mx::matmul(mx::transpose(H), d_output);
     d_b2 = d_b2 + mx::sum(d_output, 0, true);
-    mx::array d_U = mx::matmul(d_output, mx::transpose(W2)) * eigen_to_mlx(activation->derivative(mlx_to_eigen(U)));
+    mx::array d_U = mx::matmul(d_output, mx::transpose(W2)) * activation->derivative(U);
     d_W1 = d_W1 + mx::matmul(mx::transpose(X), d_U);
     d_b1 = d_b1 + mx::sum(d_U, 0, true);
     d_input = mx::matmul(d_U, mx::transpose(W1));
@@ -53,7 +53,7 @@ void FeedForward::backward(const mx::array& d_output) {
 
 mx::array FeedForward::infer(const mx::array& input) const {
     mx::array U_tmp = mx::matmul(input, W1) + b1;
-    mx::array H_tmp = eigen_to_mlx(activation->apply(mlx_to_eigen(U_tmp)));
+    mx::array H_tmp = activation->apply(U_tmp);
     return mx::matmul(H_tmp, W2) + b2;
 }
 
