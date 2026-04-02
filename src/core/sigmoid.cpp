@@ -2,14 +2,15 @@
 #include "core/sigmoid.hpp"
 
 using namespace std;
+namespace mx = mlx::core;
 
-MatrixXd Sigmoid::apply(const MatrixXd& z) const {
-    return 1.0 / (1.0 + (-z.array()).exp());
+mx::array Sigmoid::apply(const mx::array& z) const {
+    return mx::array(1.0f) / (mx::array(1.0f) + mx::exp(-z));
 }
 
-MatrixXd Sigmoid::derivative(const MatrixXd& z) const {
-    MatrixXd sigmoid = apply(z);
-    return sigmoid.array() * (1.0 - sigmoid.array());
+mx::array Sigmoid::derivative(const mx::array& z) const {
+    mx::array s = apply(z);
+    return s * (mx::array(1.0f) - s);
 }
 
 ActivationType Sigmoid::get_type() const {

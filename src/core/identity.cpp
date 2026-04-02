@@ -1,13 +1,14 @@
 #include "core/identity.hpp"
 
 using namespace std;
+namespace mx = mlx::core;
 
-MatrixXd Identity::apply(const MatrixXd& z) const {
+mlx::core::array Identity::apply(const mlx::core::array& z) const {
     return z;
 }
 
-MatrixXd Identity::derivative(const MatrixXd& z) const {
-    return MatrixXd::Ones(z.rows(), z.cols());
+mlx::core::array Identity::derivative(const mlx::core::array& z) const {
+    return mx::ones_like(z);
 }
 
 ActivationType Identity::get_type() const {

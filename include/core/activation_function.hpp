@@ -2,9 +2,8 @@
 #define ACTIVATION_FUNCTION_HPP
 
 #include <Eigen/Dense>
+#include <mlx/mlx.h>
 
-using namespace Eigen;
-using namespace std;
 
 enum class ActivationType {
     RELU,
@@ -22,16 +21,16 @@ class ActivationFunction {
         /**
          * Applies the activation function to the input matrix.
          * @param z The input matrix (samples x features)
-         * @return MatrixXd The result after applying the activation function
+         * @return mlx::core::array The result after applying the activation function
          */
-        virtual MatrixXd apply(const MatrixXd& z) const = 0;
+        virtual mlx::core::array apply(const mlx::core::array& z) const = 0;
 
         /**
          * Computes the derivative of the activation function.
          * @param z The input matrix (samples x features)
-         * @return MatrixXd The element-wise derivative
+         * @return mlx::core::array The element-wise derivative
          */
-        virtual MatrixXd derivative(const MatrixXd& z) const = 0;
+        virtual mlx::core::array derivative(const mlx::core::array& z) const = 0;
 
         /**
          * Returns the type of the activation function.

@@ -2,13 +2,14 @@
 #include "core/relu.hpp"
 
 using namespace std;
+namespace mx = mlx::core;
 
-MatrixXd Relu::apply(const MatrixXd& z) const {
-    return z.cwiseMax(0.0);
+mx::array Relu::apply(const mx::array& z) const {
+    return mx::maximum(z, mx::array(0.0f));
 }
 
-MatrixXd Relu::derivative(const MatrixXd& z) const {
-    return (z.array() > 0).cast<double>();
+mx::array Relu::derivative(const mx::array& z) const {
+    return mx::where(z > mx::array(0.0f), mx::array(1.0f), mx::array(0.0f));
 }
 
 ActivationType Relu::get_type() const {

@@ -3,6 +3,7 @@
 
 #include "core/activation_function.hpp"
 
+
 /**
  * Implements the identity activation function.
  * While the identity if not an activation function, it is convenient to represent it as such for implementation.
@@ -12,16 +13,16 @@ class Identity : public ActivationFunction {
         /**
          * Applies the identity activation function to the input matrix.
          * @param z The input matrix
-         * @return MatrixXd A copy of the input matrix
+         * @return mlx::core::array A copy of the input matrix
          */
-        MatrixXd apply(const MatrixXd& z) const override;
+        mlx::core::array apply(const mlx::core::array& z) const override;
 
         /**
          * Computes the derivative of the identity function.
          * @param z The input matrix
-         * @return MatrixXd A matrix of ones
+         * @return mlx::core::array A matrix of ones
          */
-        MatrixXd derivative(const MatrixXd& z) const override;
+        mlx::core::array derivative(const mlx::core::array& z) const override;
 
         /**
          * Returns the activation type (identity).

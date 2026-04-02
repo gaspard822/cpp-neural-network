@@ -11,16 +11,16 @@ class Sigmoid : public ActivationFunction {
         /**
          * Applies the sigmoid activation function to the input matrix.
          * @param z The input matrix
-         * @return MatrixXd The result of applying the sigmoid function element-wise
+         * @return mlx::core::array The result of applying the sigmoid function element-wise
          */
-        MatrixXd apply(const MatrixXd& z) const override;
+        mlx::core::array apply(const mlx::core::array& z) const override;
 
         /**
          * Computes the derivative of the sigmoid function.
          * @param z The input matrix
-         * @return MatrixXd The element-wise derivative of the sigmoid function
+         * @return mlx::core::array The element-wise derivative of the sigmoid function
          */
-        MatrixXd derivative(const MatrixXd& z) const override;
+        mlx::core::array derivative(const mlx::core::array& z) const override;
 
         /**
          * Returns the activation type (sigmoid).
