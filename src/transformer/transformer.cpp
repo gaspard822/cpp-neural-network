@@ -95,16 +95,16 @@ const mx::array& TransformerNetwork::forward(const vector<int>& encoder_token_id
     const mx::array* encoder_output = &encoder_input_layer->get_output_mlx();
     // Forward that embedding into the encoders
     for (Encoder* encoder: encoders) {
-        encoder->forward_mlx(*encoder_output);
-        encoder_output = &encoder->get_output_mlx();
+        encoder->forward(*encoder_output);
+        encoder_output = &encoder->get_output();
     }
     
     decoder_input_layer->forward_mlx(decoder_token_ids);
     const mx::array* decoder_output = &decoder_input_layer->get_output_mlx();
     // Forward that embedding into the decoders
     for (Decoder* decoder: decoders) {
-        decoder->forward_mlx(*encoder_output, *decoder_output);
-        decoder_output = &decoder->get_output_mlx();
+        decoder->forward(*encoder_output, *decoder_output);
+        decoder_output = &decoder->get_output();
     }
     
     linear_layer->forward_mlx(*decoder_output);
@@ -117,19 +117,19 @@ const mx::array& TransformerNetwork::backward(const vector<int>& y_true, const m
     linear_layer->backward_mlx(*decoder_d_input);
     decoder_d_input = &linear_layer->get_d_input_mlx();
 
-    int num_encoder_tokens = encoders[encoders.size()-1]->get_output_mlx().shape(0);
+    int num_encoder_tokens = encoders[encoders.size()-1]->get_output().shape(0);
     mx::array encoder_d_input_buf = mx::zeros({num_encoder_tokens, d_model}, mx::float32);
     for (int i = num_decoder_layers - 1; i >= 0; i--) {
-        decoders[i]->backward_mlx(*decoder_d_input);
-        decoder_d_input = &decoders[i]->get_d_input_mlx();
-        encoder_d_input_buf = encoder_d_input_buf + decoders[i]->get_d_encoder_input_mlx();
+        decoders[i]->backward(*decoder_d_input);
+        decoder_d_input = &decoders[i]->get_d_input();
+        encoder_d_input_buf = encoder_d_input_buf + decoders[i]->get_d_encoder_input();
     }
     decoder_input_layer->backward_mlx(*decoder_d_input);
 
     const mx::array* encoder_d_input = &encoder_d_input_buf;
     for (int i = num_encoder_layers - 1; i >= 0; i--) {
-        encoders[i]->backward_mlx(*encoder_d_input);
-        encoder_d_input = &encoders[i]->get_d_input_mlx();
+        encoders[i]->backward(*encoder_d_input);
+        encoder_d_input = &encoders[i]->get_d_input();
     }
     encoder_input_layer->backward_mlx(*encoder_d_input);
     return *encoder_d_input;
@@ -144,7 +144,7 @@ void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPE
         mx::array encoder_output = encoder_input_layer->infer_mlx(encoder_token_ids[i]);
         // Forward that embedding into the encoders
         for (Encoder* encoder: encoders) {
-            encoder_output = encoder->infer_mlx(encoder_output);
+            encoder_output = encoder->infer(encoder_output);
         }
     
         int last_token = BPETokenizer::SOS_ID;
@@ -153,7 +153,7 @@ void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPE
             mx::array decoder_output = decoder_input_layer->infer_mlx(predicted_tokens);
             // Forward that embedding into the decoders
             for (Decoder* decoder: decoders) {
-                decoder_output = decoder->infer_mlx(encoder_output, decoder_output);
+                decoder_output = decoder->infer(encoder_output, decoder_output);
             }
     
             mx::array linear_layer_output = linear_layer->infer_mlx(decoder_output);
@@ -181,7 +181,7 @@ void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
 
         mx::array encoder_output = encoder_input_layer->infer_mlx(encoder_token_ids);
         for (Encoder* encoder : encoders) {
-            encoder_output = encoder->infer_mlx(encoder_output);
+            encoder_output = encoder->infer(encoder_output);
         }
 
         int last_token = BPETokenizer::SOS_ID;
@@ -189,7 +189,7 @@ void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
         while (last_token != BPETokenizer::EOS_ID && predicted_tokens.size() < seq) {
             mx::array decoder_output = decoder_input_layer->infer_mlx(predicted_tokens);
             for (Decoder* decoder : decoders) {
-                decoder_output = decoder->infer_mlx(encoder_output, decoder_output);
+                decoder_output = decoder->infer(encoder_output, decoder_output);
             }
             mx::array linear_layer_output = linear_layer->infer_mlx(decoder_output);
             int last_row = linear_layer_output.shape(0) - 1;

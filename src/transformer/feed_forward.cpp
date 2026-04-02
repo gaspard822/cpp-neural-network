@@ -7,105 +7,66 @@ namespace mx = mlx::core;
 
 FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, int d_ff) :
                         activation(activation), seq(seq), d_model(d_model), d_ff(d_ff),
-                        X_mlx(mx::zeros({1, 1}, mx::float32)), U_mlx(mx::zeros({1, 1}, mx::float32)), H_mlx(mx::zeros({1, 1}, mx::float32)),
-                        W1_mlx(mx::zeros({d_model, d_ff}, mx::float32)), W2_mlx(mx::zeros({d_ff, d_model}, mx::float32)),
-                        d_W1_mlx(mx::zeros({d_model, d_ff}, mx::float32)), d_W2_mlx(mx::zeros({d_ff, d_model}, mx::float32)),
-                        b1_mlx(mx::zeros({1, d_ff}, mx::float32)), b2_mlx(mx::zeros({1, d_model}, mx::float32)),
-                        d_b1_mlx(mx::zeros({1, d_ff}, mx::float32)), d_b2_mlx(mx::zeros({1, d_model}, mx::float32)) {
+                        X(mx::zeros({1, 1}, mx::float32)), U(mx::zeros({1, 1}, mx::float32)), H(mx::zeros({1, 1}, mx::float32)),
+                        W1(mx::zeros({d_model, d_ff}, mx::float32)), W2(mx::zeros({d_ff, d_model}, mx::float32)),
+                        d_W1(mx::zeros({d_model, d_ff}, mx::float32)), d_W2(mx::zeros({d_ff, d_model}, mx::float32)),
+                        b1(mx::zeros({1, d_ff}, mx::float32)), b2(mx::zeros({1, d_model}, mx::float32)),
+                        d_b1(mx::zeros({1, d_ff}, mx::float32)), d_b2(mx::zeros({1, d_model}, mx::float32)) {
     
-    W1 = MatrixXd::Random(d_model, d_ff);
-    W2 = MatrixXd::Random(d_ff, d_model);
     if (activation->get_type() == ActivationType::RELU) {
         // He initialization for the weights if using a ReLU activation function
         // This is not the true He initialization as the weights are chosen from a uniform distribution and not a
         // Gaussian one, but it works well in practice and is efficient
-        W1 = W1 * sqrt(2.0 / d_model);
-        W2 = W2 * sqrt(2.0 / d_ff);
+        float he_factor_1 = sqrt(2.0f / d_model);
+        float he_factor_2 = sqrt(2.0f / d_ff);
+        W1 = mx::random::uniform(-he_factor_1, he_factor_1, {d_model, d_ff});
+        W2 = mx::random::uniform(-he_factor_2, he_factor_2, {d_ff, d_model});
     } else if (activation->get_type() == ActivationType::SIGMOID) {
         // Glorot initialization for the weights if using a sigmoid activation function
-        double limit = sqrt(6.0 / (d_ff + d_model));
-        W1 = W1 * limit;
-        W2 = W2 * limit;
+        double glorot_factor = sqrt(6.0f / (d_ff + d_model));
+        W1 = mx::random::uniform(-glorot_factor, glorot_factor, {d_model, d_ff});
+        W2 = mx::random::uniform(-glorot_factor, glorot_factor, {d_ff, d_model});
+    } else {
+        W1 = mx::random::uniform(-1.0f, 1.0f, {d_model, d_ff});
+        W2 = mx::random::uniform(-1.0f, 1.0f, {d_ff, d_model});
     }
 
-    b1 = RowVectorXd::Zero(d_ff);
-    b2 = RowVectorXd::Zero(d_model);
-    
-    d_W1 = MatrixXd(d_model, d_ff);
-    d_W2 = MatrixXd(d_ff, d_model);
-    d_b1 = RowVectorXd(d_ff);
-    d_b2 = RowVectorXd(d_model);
-
     params = {TrainableParameter(W1, d_W1), TrainableParameter(b1, d_b1), TrainableParameter(W2, d_W2), TrainableParameter(b2, d_b2)};
-
-    W1_mlx = eigen_to_mlx(W1);
-    W2_mlx = eigen_to_mlx(W2);
 }
 
-void FeedForward::forward(const MatrixXd& input) {
+void FeedForward::forward(const mx::array& input) {
     // input : (num_tokens, d_model)
     X = input;
-    U = (input * W1).rowwise() + b1;
-    H = activation->apply(U);
-    output = (H * W2).rowwise() + b2;
+    U = mx::matmul(input, W1) + b1;
+    H = eigen_to_mlx(activation->apply(mlx_to_eigen(U)));
+    output = mx::matmul(H, W2) + b2;
 }
 
-void FeedForward::forward_mlx(const mx::array& input) {
-    // input : (num_tokens, d_model)
-    X_mlx = input;
-    U_mlx = mx::matmul(input, W1_mlx) + b1_mlx;
-    H_mlx = eigen_to_mlx(activation->apply(mlx_to_eigen(U_mlx)));
-    output_mlx = mx::matmul(H_mlx, W2_mlx) + b2_mlx;
+void FeedForward::backward(const mx::array& d_output) {
+    d_W2 = d_W2 + mx::matmul(mx::transpose(H), d_output);
+    d_b2 = d_b2 + mx::sum(d_output, 0, true);
+    mx::array d_U = mx::matmul(d_output, mx::transpose(W2)) * eigen_to_mlx(activation->derivative(mlx_to_eigen(U)));
+    d_W1 = d_W1 + mx::matmul(mx::transpose(X), d_U);
+    d_b1 = d_b1 + mx::sum(d_U, 0, true);
+    d_input = mx::matmul(d_U, mx::transpose(W1));
 }
 
-void FeedForward::backward(const MatrixXd& d_output) {
-    d_W2 += H.transpose() * d_output;
-    d_b2 += d_output.colwise().sum();
-    MatrixXd d_U = (d_output * W2.transpose()).cwiseProduct(activation->derivative(U));
-    d_W1 += X.transpose() * d_U;
-    d_b1 += d_U.colwise().sum();
-    d_input = d_U * W1.transpose();
-}
-
-void FeedForward::backward_mlx(const mx::array& d_output) {
-    d_W2_mlx = d_W2_mlx + mx::matmul(mx::transpose(H_mlx), d_output);
-    d_b2_mlx = d_b2_mlx + mx::sum(d_output, 0, true);
-    mx::array d_U_mlx = mx::matmul(d_output, mx::transpose(W2_mlx)) * eigen_to_mlx(activation->derivative(mlx_to_eigen(U_mlx)));
-    d_W1_mlx = d_W1_mlx + mx::matmul(mx::transpose(X_mlx), d_U_mlx);
-    d_b1_mlx = d_b1_mlx + mx::sum(d_U_mlx, 0, true);
-    d_input_mlx = mx::matmul(d_U_mlx, mx::transpose(W1_mlx));
-}
-
-MatrixXd FeedForward::infer(const MatrixXd& input) const {
-    MatrixXd U_tmp = (input * W1).rowwise() + b1;
-    MatrixXd H_tmp = activation->apply(U_tmp);
-    return (H_tmp * W2).rowwise() + b2;
-}
-
-mx::array FeedForward::infer_mlx(const mx::array& input) const {
-    mx::array U_tmp_mlx = mx::matmul(input, W1_mlx) + b1_mlx;
-    mx::array H_tmp_mlx = eigen_to_mlx(activation->apply(mlx_to_eigen(U_tmp_mlx)));
-    return mx::matmul(H_tmp_mlx, W2_mlx) + b2_mlx;
+mx::array FeedForward::infer(const mx::array& input) const {
+    mx::array U_tmp = mx::matmul(input, W1) + b1;
+    mx::array H_tmp = eigen_to_mlx(activation->apply(mlx_to_eigen(U_tmp)));
+    return mx::matmul(H_tmp, W2) + b2;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {
     return params;
 }
 
-const MatrixXd& FeedForward::get_output() const {
+const mx::array& FeedForward::get_output() const {
     return output;
 }
 
-const mx::array& FeedForward::get_output_mlx() const {
-    return output_mlx;
-}
-
-const MatrixXd& FeedForward::get_d_input() const {
+const mx::array& FeedForward::get_d_input() const {
     return d_input;
-}
-
-const mx::array& FeedForward::get_d_input_mlx() const {
-    return d_input_mlx;
 }
 
 string FeedForward::get_layer_name() const {
@@ -123,10 +84,10 @@ LayerType FeedForward::get_type() const {
 void FeedForward::save(ofstream& file) const {
     file << get_layer_name() << "\n";
     file << seq << " " << d_model << " " << d_ff << "\n";
-    file << W1 << "\n";
-    file << b1 << "\n";
-    file << W2 << "\n";
-    file << b2 << "\n";
+    save_array(file, W1);
+    save_array(file, b1);
+    save_array(file, W2);
+    save_array(file, b2);
 }
 
 void FeedForward::load(ifstream& file) {
@@ -135,20 +96,8 @@ void FeedForward::load(ifstream& file) {
     if (layer_name != get_layer_name()) throw runtime_error("Wrong layer was given. Got " + layer_name + ", expected " + get_layer_name());
 
     file >> seq >> d_model >> d_ff;
-    for (int i = 0; i < d_model; i++) {
-        for (int j = 0; j < d_ff; j++) {
-            file >> W1(i, j);
-        }
-    }
-    for (int i = 0; i < d_ff; i++) {
-        file >> b1(i);
-    }
-    for (int i = 0; i < d_ff; i++) {
-        for (int j = 0; j < d_model; j++) {
-            file >> W2(i, j);
-        }
-    }
-    for (int i = 0; i < d_model; i++) {
-        file >> b2(i);
-    }
+    W1 = load_array(file);
+    b1 = load_array(file);
+    W2 = load_array(file);
+    b2 = load_array(file);
 }

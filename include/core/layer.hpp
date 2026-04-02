@@ -8,6 +8,7 @@
 using namespace Eigen;
 using namespace std;
 
+
 struct TrainableParameter {
     double* value_data = nullptr;
     double* grad_data  = nullptr;
@@ -49,38 +50,37 @@ enum class LayerType {
  */
 class Layer {
     protected:
-        MatrixXd d_input, output;
-        mlx::core::array d_input_mlx, output_mlx;
+        mlx::core::array output, d_input;
     
     public:
-        Layer() : d_input_mlx(mlx::core::zeros({1,1}, mlx::core::float32)),
-                  output_mlx(mlx::core::zeros({1,1}, mlx::core::float32)) {}
+        Layer() : output(mlx::core::zeros({1,1}, mlx::core::float32)),
+                  d_input(mlx::core::zeros({1,1}, mlx::core::float32)) {}
         virtual ~Layer() = default;
 
         /**
          * Does the forward pass using the given input.
          * @param input Input matrix for the layer
          */
-        virtual void forward(const MatrixXd& input) = 0;
+        virtual void forward(const mlx::core::array& input) = 0;
 
         /**
          * Does the backward pass using the given output gradient and saves the gradient with respect to the layer input in d_input.
          * @param d_output Gradient of the loss passed by the following layer
          */
-        virtual void backward(const MatrixXd& d_output) = 0;
+        virtual void backward(const mlx::core::array& d_output) = 0;
 
         /**
          * Does inference (forward pass) without modifying the internal state of the layer.
          * @param layer_input Input of the layer
-         * @return MatrixXd Output of the layer
+         * @return mlx::core::array Output of the layer
          */
-        virtual MatrixXd infer(const MatrixXd& layer_input) const = 0;
+        virtual mlx::core::array infer(const mlx::core::array& layer_input) const = 0;
 
         virtual const vector<TrainableParameter>& get_parameters() const = 0;
 
         // Straightforward getters
-        virtual const MatrixXd& get_output() const = 0;
-        virtual const MatrixXd& get_d_input() const = 0;
+        virtual const mlx::core::array& get_output() const = 0;
+        virtual const mlx::core::array& get_d_input() const = 0;
 
         /**
          * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
@@ -111,9 +111,7 @@ class Layer {
          * Loads the layer's weights and hyperparameters from a stream.
          * @param file Stream from which to load the layer
          */
-        virtual void load(ifstream& file) = 0;
-
-        
+        virtual void load(ifstream& file) = 0;        
 };
 
 #endif
