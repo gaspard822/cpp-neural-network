@@ -6,6 +6,7 @@
 #include "transformer/bpe_tokenizer.hpp"
 #include "core/mlx_utils.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 void TransformerNetwork::init_layers() {
@@ -266,9 +267,9 @@ void TransformerNetwork::train(
             normalize_gradients(end - start);
             optimizer->update_parameters();
             reset_gradients();
+            float loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
+            cout << "Loss: " << loss << endl;
         }
-        float loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
-        cout << "Loss: " << loss << endl;
     }
 }
 

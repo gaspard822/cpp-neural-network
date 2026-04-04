@@ -5,7 +5,6 @@
 #include <core/loss_function.hpp>
 #include <core/optimizer.hpp>
 
-using namespace std;
 
 enum class NetworkType {
     MULTI_LAYER_PERCEPTRON,
@@ -29,16 +28,16 @@ class Network {
          * Saves the model's architecture and parameters to a .txt file.
          * @param path Filesystem path to save the model
          */
-        virtual void save_model(const string& path) const = 0;
+        virtual void save_model(const std::string& path) const = 0;
 
         /**
          * Loads a model's architecture and parameters from a file.
          * @param path Filesystem path to the saved model
          */
-        virtual void load_model(const string& path) = 0;
+        virtual void load_model(const std::string& path) = 0;
 
         // Straightforward getter
-        virtual const vector<Layer*>& get_layers() const = 0;
+        virtual const std::vector<Layer*>& get_layers() const = 0;
 
         // Straightforward getter
         virtual Optimizer* get_optimizer() const = 0;

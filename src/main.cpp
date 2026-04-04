@@ -16,7 +16,7 @@ int main() {
 
     TrainingConfig cfg;
     init_transformer_model(cfg);
-    // train_transformer_model(cfg, false, false);
+    train_transformer_model(cfg, false, false);
 
     return 0;
 }

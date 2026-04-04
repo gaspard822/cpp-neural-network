@@ -7,14 +7,13 @@
 #include "core/loss_function.hpp"
 #include "core/optimizer.hpp"
 
-using namespace std;
 
 /**
  * Represents a feedforward neural network composed of sequential layers.
  */
 class MultiLayerPerceptronNetwork : public Network {
     private:
-        vector<Layer*> layers;
+        std::vector<Layer*> layers;
     
     public:
         /**
@@ -34,7 +33,7 @@ class MultiLayerPerceptronNetwork : public Network {
          * @param loss_function Name of the loss function ("MeanSquaredError" or "CrossEntropy")
          * @param optimizer Name of the optimizer ("VanillaSGD" or "Adam")
          */
-        MultiLayerPerceptronNetwork(const string& loss_function, const string& optimizer);
+        MultiLayerPerceptronNetwork(const std::string& loss_function, const std::string& optimizer);
 
         ~MultiLayerPerceptronNetwork();
 
@@ -84,16 +83,16 @@ class MultiLayerPerceptronNetwork : public Network {
          * Saves the model's architecture and parameters to a .txt file.
          * @param path Filesystem path to save the model
          */
-        void save_model(const string& path) const override;
+        void save_model(const std::string& path) const override;
 
         /**
          * Loads a model's architecture and parameters from a file.
          * @param path Filesystem path to the saved model
          */
-        void load_model(const string& path) override;
+        void load_model(const std::string& path) override;
 
         // Straightforward getter
-        const vector<Layer*>& get_layers() const override;
+        const std::vector<Layer*>& get_layers() const override;
 
         // Straightforward getter
         Optimizer* get_optimizer() const override;

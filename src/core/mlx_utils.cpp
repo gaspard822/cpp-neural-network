@@ -1,9 +1,11 @@
+#include <iostream>
 #include "core/mlx_utils.hpp"
 
 using namespace std;
 namespace mx = mlx::core;
 
 void save_array(ofstream& file, const mx::array& arr) {
+    mx::eval(arr);
     file << arr.ndim();
     for (int dim : arr.shape()) file << " " << dim;
     file << "\n";

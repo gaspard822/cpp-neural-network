@@ -254,6 +254,7 @@ void init_transformer_model(TrainingConfig& cfg) {
         cfg.seq, cfg.d_model, cfg.h,
         tokenizer->get_vocab_size(), new Relu(), new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2)
     );
+    transformer_network->get_optimizer()->update_optimizer();
     transformer_network->save_model(cfg.model_path);
 }
 

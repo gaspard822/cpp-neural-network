@@ -28,7 +28,7 @@ class AdamOptimizer : public Optimizer {
         // Time step (incremented at each parameter update), mutable to allow const update
         mutable int t;
 
-        mutable unordered_map<mlx::core::array*, AdamState> states;
+        mutable std::unordered_map<mlx::core::array*, AdamState> states;
         // Ensures that states[key] exists and has matrices with size (rows x cols)
         AdamState& get_or_create_state(mlx::core::array* key, const mlx::core::Shape& shape) const;
 
@@ -68,8 +68,8 @@ class AdamOptimizer : public Optimizer {
          */
         OptimizerType get_type() const override;
 
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif

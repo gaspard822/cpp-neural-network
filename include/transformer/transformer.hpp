@@ -23,36 +23,36 @@ class TransformerNetwork : public Network {
         Optimizer* optimizer;
 
         InputLayer* encoder_input_layer;
-        vector<Encoder*> encoders;
+        std::vector<Encoder*> encoders;
 
         InputLayer* decoder_input_layer;
-        vector<Decoder*> decoders;
+        std::vector<Decoder*> decoders;
 
         LinearLayer* linear_layer;
 
-        vector<Layer*> layers;
+        std::vector<Layer*> layers;
 
     public:
         TransformerNetwork(int num_encoder_layers, int num_decoder_layers, int seq, int d_model, int h, int vocab_size,
                     ActivationFunction* activation, Optimizer* optimizer);
 
-        TransformerNetwork(const string& path, ActivationFunction* activation, Optimizer* optimizer);
+        TransformerNetwork(const std::string& path, ActivationFunction* activation, Optimizer* optimizer);
 
         ~TransformerNetwork();
 
         // Helper that initializes layers (called by both constructors)
         void init_layers();
 
-        const mlx::core::array& forward(const vector<int>& encoder_token_ids, const vector<int>& decoder_token_ids);
-        const mlx::core::array& backward(const vector<int>& y_true, const mlx::core::array& y_pred);
-        void infer(const vector<vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const string& csv_path) const;
+        const mlx::core::array& forward(const std::vector<int>& encoder_token_ids, const std::vector<int>& decoder_token_ids);
+        const mlx::core::array& backward(const std::vector<int>& y_true, const mlx::core::array& y_pred);
+        void infer(const std::vector<std::vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const std::string& csv_path) const;
         void infer_live(BPETokenizer* tokenizer) const;
-        float compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val);
+        float compute_validation_loss(std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val);
         void reset_gradients();
         void normalize_gradients(int batch_size);
         void train(
-            vector<vector<int>>& encoder_tokens_train, vector<vector<int>>& decoder_tokens_train,
-            vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val,
+            std::vector<std::vector<int>>& encoder_tokens_train, std::vector<std::vector<int>>& decoder_tokens_train,
+            std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val,
             int epochs, int batch_size
         );
 
@@ -60,16 +60,16 @@ class TransformerNetwork : public Network {
          * Saves the model's architecture and parameters to a .txt file.
          * @param path Filesystem path to save the model
          */
-        void save_model(const string& path) const override;
+        void save_model(const std::string& path) const override;
 
         /**
          * Loads a model's architecture and parameters from a file.
          * @param path Filesystem path to the saved model
          */
-        void load_model(const string& path) override;
+        void load_model(const std::string& path) override;
 
         // Straightforward getter
-        const vector<Layer*>& get_layers() const override;
+        const std::vector<Layer*>& get_layers() const override;
 
         // Straightforward getter
         Optimizer* get_optimizer() const override;

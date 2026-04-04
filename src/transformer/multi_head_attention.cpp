@@ -11,6 +11,8 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
         X(mx::zeros({1, 1}, mx::float32)), encoder_output(mx::zeros({1, 1}, mx::float32)), d_encoder_output(mx::zeros({1, 1}, mx::float32)),
         forward_mask(mx::zeros({1, 1}, mx::float32)), backward_mask(mx::zeros({1, 1}, mx::float32)) {
     
+    WQ.reserve(h);  WK.reserve(h);  WV.reserve(h);  WO.reserve(h);
+    d_WQ.reserve(h); d_WK.reserve(h); d_WV.reserve(h); d_WO.reserve(h);
     params = {};
     // Glorot initialization for the parameter matrices
     float glorot_factor_d_k = sqrt(6.0f / (d_model + d_k));

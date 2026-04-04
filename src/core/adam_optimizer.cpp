@@ -98,7 +98,6 @@ void AdamOptimizer::load(ifstream& file) {
     file >> t;
     for (Layer* layer : network->get_layers()) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-
             AdamState& st = get_or_create_state(p.value, p.value->shape());
             st.m = load_array(file);
             st.v = load_array(file);

@@ -41,8 +41,8 @@ class VanillaSGDOptimizer : public Optimizer {
          */
         OptimizerType get_type() const override;
 
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif
