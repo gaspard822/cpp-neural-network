@@ -3,9 +3,9 @@
 #include <vector>
 #include <algorithm>
 #include <random>
-#include <chrono>
 #include "mlp/neural_network.hpp"
 #include "mlp/fully_connected_layer.hpp"
+#include "core/mlx_utils.hpp"
 #include "core/relu.hpp"
 #include "core/sigmoid.hpp"
 #include "core/identity.hpp"
@@ -15,6 +15,7 @@
 #include "core/vanilla_sgd_optimizer.hpp"
 
 using namespace std;
+namespace mx = mlx::core;
 
 MultiLayerPerceptronNetwork::MultiLayerPerceptronNetwork() {
     loss_function = nullptr;
@@ -55,8 +56,8 @@ void MultiLayerPerceptronNetwork::add_layer(Layer* layer) {
     layers.push_back(layer);
 }
 
-MatrixXd MultiLayerPerceptronNetwork::forward(const MatrixXd& input) const {
-    const MatrixXd* activation = &input;
+mx::array MultiLayerPerceptronNetwork::forward(const mx::array& input) const {
+    const mx::array* activation = &input;
     for (Layer* layer: layers) {
         layer->forward(*activation);
         activation = &layer->get_output();
@@ -64,11 +65,9 @@ MatrixXd MultiLayerPerceptronNetwork::forward(const MatrixXd& input) const {
     return *activation;
 }
 
-void MultiLayerPerceptronNetwork::backward(const MatrixXd& y_true, const MatrixXd& y_pred) const {
-    // First compute the derivative of the loss with respect to the loss function
-    MatrixXd d_loss_buf = loss_function->derivative(y_true, y_pred);
-    const MatrixXd* d_loss = &d_loss_buf;
-    // Propagate the gradients with respect to each layer back into the network and update the parameters accordingly
+void MultiLayerPerceptronNetwork::backward(const mx::array& y_true, const mx::array& y_pred) const {
+    mx::array d_loss_buf = loss_function->derivative(y_true, y_pred);
+    const mx::array* d_loss = &d_loss_buf;
     int num_layers = layers.size();
     for (int i = num_layers - 1; i >= 0; i--) {
         layers[i]->backward(*d_loss);
@@ -78,73 +77,44 @@ void MultiLayerPerceptronNetwork::backward(const MatrixXd& y_true, const MatrixX
 }
 
 // If the argument batch_size is <= 0, then no mini-batching is done
-void MultiLayerPerceptronNetwork::train(const MatrixXd& X_train, const MatrixXd& Y_train, int epochs, int batch_size,
-                          const MatrixXd& X_val, const MatrixXd& Y_val, bool early_stopping, bool verbose) {
+void MultiLayerPerceptronNetwork::train(const mx::array& X_train, const mx::array& Y_train, int epochs, int batch_size,
+                          const mx::array& X_val, const mx::array& Y_val, bool early_stopping) {
     int patience = 10;
     int epochs_without_improvement = 0;
-    double best_val_loss = __DBL_MAX__;
-    double current_error;
-    chrono::time_point<chrono::high_resolution_clock> start, end;
+    float best_val_loss = numeric_limits<float>::max();
+    float current_error;
+    int N = X_train.shape(0);
+    bool has_val = X_val.ndim() >= 2 && X_val.shape(0) > 0;
 
     for (int i = 0; i < epochs; i++) {
         if (i % 10 == 0) {
-            start = chrono::high_resolution_clock::now();
             cout << "Epoch " << i << endl;
         }
 
         // Creating the batches
-        auto batch_time_start = chrono::high_resolution_clock::now();
-        MatrixXd X_batch;
-        MatrixXd Y_batch;
+        mx::array X_batch = X_train;
+        mx::array Y_batch = Y_train;
         if (batch_size > 0) {
-            vector<int> indices(X_train.rows());
+            vector<int> indices(N);
             iota(indices.begin(), indices.end(), 0);
             shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
-
-            X_batch.resize(batch_size, X_train.cols());
-            Y_batch.resize(batch_size, Y_train.cols());
-
-            for (int i = 0; i < batch_size; ++i) {
-                X_batch.row(i) = X_train.row(indices[i]);
-                Y_batch.row(i) = Y_train.row(indices[i]);
-            }
-        } else {
-            X_batch = X_train;
-            Y_batch = Y_train;
+            indices.resize(batch_size);
+            mx::array idx = mx::array(indices.data(), {batch_size}, mx::int32);
+            X_batch = mx::take(X_train, idx, 0);
+            Y_batch = mx::take(Y_train, idx, 0);
         }
-        auto batch_time_end = chrono::high_resolution_clock::now();
 
         // Forward+Backward passes
-        auto forward_time_start = chrono::high_resolution_clock::now();
-        MatrixXd forward_X_batch = forward(X_batch);
-        auto forward_time_end = chrono::high_resolution_clock::now();
-        auto backward_time_start = chrono::high_resolution_clock::now();
+        mx::array forward_X_batch = forward(X_batch);
         backward(Y_batch, forward_X_batch);
-        auto backward_time_end = chrono::high_resolution_clock::now();
-        
-        if (verbose) {
-            cout << "Time for creating the batch: " << chrono::duration_cast<chrono::milliseconds>(batch_time_end - batch_time_start).count() << "ms" << endl;
-            cout << "Time for forwarding the batch: " << chrono::duration_cast<chrono::milliseconds>(forward_time_end - forward_time_start).count() << "ms" << endl;
-            cout << "Time for backwarding the batch: " << chrono::duration_cast<chrono::milliseconds>(backward_time_end - backward_time_start).count() << "ms" << endl;
-        }
 
-        // If some validation set is defined, compute and print error
-        if (X_val.rows() > 0 && X_val.cols() > 0 && Y_val.rows() > 0 && Y_val.cols() > 0) {
-            auto infer_time_start = chrono::high_resolution_clock::now();
-            MatrixXd infer_X_val = infer(X_val);
-            auto infer_time_end = chrono::high_resolution_clock::now();
-            auto validation_error_time_start = chrono::high_resolution_clock::now();
+        if (has_val) {
+            mx::array infer_X_val = infer(X_val);
             current_error = loss_function->compute(Y_val, infer_X_val);
-            auto validation_error_time_end = chrono::high_resolution_clock::now();
             cout << "Current error: " << current_error << endl;
 
-            if (verbose) {
-                cout << "Time for inferring the validation set: " << chrono::duration_cast<chrono::milliseconds>(infer_time_end - infer_time_start).count() << "ms" << endl;
-                cout << "Time for computing the validation error: " << chrono::duration_cast<chrono::milliseconds>(validation_error_time_end - validation_error_time_start).count() << "ms" << endl;
-            }
-
             if (early_stopping) {
-                if (current_error - best_val_loss < 0) {
+                if (current_error < best_val_loss) {
                     best_val_loss = current_error;
                     epochs_without_improvement = 0;
                 } else {
@@ -157,34 +127,17 @@ void MultiLayerPerceptronNetwork::train(const MatrixXd& X_train, const MatrixXd&
             }
         }
 
-        if ((i+1) % 10 == 0) {
-            end = chrono::high_resolution_clock::now();
-            cout << "           Execution Time: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+        if (loss_function->get_type() == LossFunctionType::CROSSENTROPY && (i+1) % 10 == 0 && has_val) {
+            mx::array inference = infer(X_val);
+            int num_samples = X_val.shape(0);
+            int correct = mx::sum(mx::equal(mx::argmax(inference, 1), mx::argmax(Y_val, 1))).item<int>();
+            cout << "           Accuracy: " << 100.0 * (float) correct / (float) num_samples << "%" << endl;
         }
-
-        if (loss_function->get_type() == LossFunctionType::CROSSENTROPY && (i+1) % 10 == 0
-            && X_val.rows() > 0 && X_val.cols() > 0 && Y_val.rows() > 0 && Y_val.cols() > 0) {
-
-            MatrixXd inference = infer(X_val);
-            int num_samples = X_val.rows();
-            VectorXd prediction(num_samples);
-            VectorXd truth(num_samples);
-            int correct_predictions = 0;
-            for (int i = 0; i < num_samples; i++) {
-                Index pred, label;
-                inference.row(i).maxCoeff(&pred);
-                Y_val.row(i).maxCoeff(&label);
-                if (pred == label) correct_predictions += 1;
-            }
-            cout << "           Accuracy: " << 100.0 * (double) correct_predictions / (double) num_samples << "%" << endl;
-            
-        }
-
     }
 }
 
-MatrixXd MultiLayerPerceptronNetwork::infer(const MatrixXd& input) const {
-    MatrixXd activation = input;
+mx::array MultiLayerPerceptronNetwork::infer(const mx::array& input) const {
+    mx::array activation = input;
     for (Layer* layer: layers) {
         activation = layer->infer(activation);
     }
@@ -192,49 +145,22 @@ MatrixXd MultiLayerPerceptronNetwork::infer(const MatrixXd& input) const {
 }
 
 void MultiLayerPerceptronNetwork::save_model(const string& path) const {
-    // We save:
-    // 1. The number of layers
-    // 2. The type of the optimizer
-    // 3. For each layer, we save:
-    //    a. The type of the layer
-    //    b. The input and output dimensions
-    //    c. The activation function
-    //    d. The parameters and internal state (weights, bias, scale, shift, running mean, running variance,
-    //       inverse of the squared variance)
-
     ofstream file(path);
     file << layers.size() << "\n";
     if (optimizer->get_type() == OptimizerType::ADAM) {
-        file << "Adam" << "\n";
+        file << "Adam\n";
     } else if (optimizer->get_type() == OptimizerType::VANILLA_SGD) {
-        file << "VanillaSGD" << "\n";
+        file << "VanillaSGD\n";
     } else {
         throw runtime_error("No optimizer is defined, the network can not be saved");
     }
     for (auto* layer : layers) {
-        auto* fc = dynamic_cast<FullyConnectedLayer*>(layer);
-        if (fc) {
-            file << "FullyConnected\n";
-            // fc->get_weights().cols() <=> input_size
-            // fc->get_weights().cols() <=> output_size
-            file << fc->get_weights().cols() << " " << fc->get_weights().rows() << "\n";
-            file << fc->get_activation_name() << "\n";
-            file << fc->get_weights() << "\n";
-            file << fc->get_bias().transpose() << "\n";
-            file << fc->get_gamma() << "\n";
-            file << fc->get_beta() << "\n";
-            file << fc->get_running_mean() << "\n";
-            file << fc->get_running_variance() << "\n";
-            file << fc->get_inv_sqrt_var_plus_epsilon() << "\n";
-        }
+        layer->save(file);
     }
     file << loss_function->get_loss_name() << "\n";
 }
 
 void MultiLayerPerceptronNetwork::load_model(const string& filename) {
-    // This function should be called as follows: "MultiLayerPerceptronNetwork mlp; mlp.load_model(path);"
-    // Here, we restore a network previously saved with save_model()
-    
     ifstream file(filename);
     int num_layers;
     file >> num_layers;
@@ -245,7 +171,7 @@ void MultiLayerPerceptronNetwork::load_model(const string& filename) {
     } else if (optimizer_type == "VanillaSGD") {
         optimizer = new VanillaSGDOptimizer(this, 0.02);
     } else {
-        throw runtime_error("The optimizer could not be recognized upon loading of the network");
+        throw runtime_error("The optimizer could not be recognized.");
     }
 
     layers.clear();
@@ -253,58 +179,19 @@ void MultiLayerPerceptronNetwork::load_model(const string& filename) {
     for (int i = 0; i < num_layers; i++) {
         string layer_type;
         file >> layer_type;
-        if (layer_type == "FullyConnected") {
-            int input_size, output_size;
-            file >> input_size >> output_size;
-
+        if (layer_type == "FullyConnectedLayer") {
             string act_name;
             file >> act_name;
             ActivationFunction* act = nullptr;
             if (act_name == "relu") act = new Relu();
-            if (act_name == "sigmoid") act = new Sigmoid();
-            if (act_name == "identity") act = new Identity();
+            else if (act_name == "sigmoid") act = new Sigmoid();
+            else if (act_name == "identity") act = new Identity();
 
-            MatrixXd weights(output_size, input_size);
-            for (int r = 0; r < output_size; r++) {
-                for (int c = 0; c < input_size; c++) {
-                    file >> weights(r, c);
-                }
-            }
+            int input_size, output_size;
+            file >> input_size >> output_size;
 
-            VectorXd bias(output_size);
-            for (int j = 0; j < output_size; j++) {
-                file >> bias(j);
-            }
-
-            RowVectorXd gamma(input_size);
-            for (int j = 0; j < input_size; j++) {
-                file >> gamma(j);
-            }
-
-            RowVectorXd beta(input_size);
-            for (int j = 0; j < input_size; j++) {
-                file >> beta(j);
-            }
-
-            RowVectorXd running_mean(input_size);
-            for (int j = 0; j < input_size; j++) {
-                file >> running_mean(j);
-            }
-
-            RowVectorXd running_variance(input_size);
-            for (int j = 0; j < input_size; j++) {
-                file >> running_variance(j);
-            }
-
-            RowVectorXd inv_sqrt_var_plus_epsilon(input_size);
-            for (int j = 0; j < input_size; j++) {
-                file >> inv_sqrt_var_plus_epsilon(j);
-            }
-
-            FullyConnectedLayer* fc = new FullyConnectedLayer(act, weights, bias, gamma, beta);
-            fc->set_running_mean(running_mean);
-            fc->set_running_variance(running_variance);
-            fc->set_inv_sqrt_var_plus_epsilon(inv_sqrt_var_plus_epsilon);
+            FullyConnectedLayer* fc = new FullyConnectedLayer(act, input_size, output_size);
+            fc->load(file);
             add_layer(fc);
         } else {
             throw runtime_error("The type of layer was not recognized during the model loading");
@@ -315,7 +202,7 @@ void MultiLayerPerceptronNetwork::load_model(const string& filename) {
     file >> loss_function_name;
     loss_function = nullptr;
     if (loss_function_name == "mse") loss_function = new MeanSquaredError();
-    if (loss_function_name == "cross-entropy") loss_function = new CrossEntropy();
+    else if (loss_function_name == "cross-entropy") loss_function = new CrossEntropy();
 }
 
 const vector<Layer*>& MultiLayerPerceptronNetwork::get_layers() const {

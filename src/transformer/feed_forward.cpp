@@ -3,6 +3,7 @@
 #include "transformer/feed_forward.hpp"
 #include "core/mlx_utils.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, int d_ff) :
@@ -23,7 +24,7 @@ FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, i
         W2 = mx::random::uniform(-he_factor_2, he_factor_2, {d_ff, d_model});
     } else if (activation->get_type() == ActivationType::SIGMOID) {
         // Glorot initialization for the weights if using a sigmoid activation function
-        double glorot_factor = sqrt(6.0f / (d_ff + d_model));
+        float glorot_factor = sqrt(6.0f / (d_ff + d_model));
         W1 = mx::random::uniform(-glorot_factor, glorot_factor, {d_model, d_ff});
         W2 = mx::random::uniform(-glorot_factor, glorot_factor, {d_ff, d_model});
     } else {

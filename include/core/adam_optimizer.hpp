@@ -6,8 +6,11 @@
 #include "transformer/transformer.hpp"
 
 struct AdamState {
-    MatrixXd m;
-    MatrixXd v;
+    mlx::core::array m;
+    mlx::core::array v;
+
+    // We need a dummy init because mlx::core::array has no default constructor
+    AdamState(): m(mlx::core::zeros({1}, mlx::core::float32)), v(mlx::core::zeros({1}, mlx::core::float32)) {}
 };
 
 
@@ -17,18 +20,17 @@ struct AdamState {
 class AdamOptimizer : public Optimizer {
     private:
         // Learning rate
-        double stepsize;
+        float stepsize;
         // Exponential decay rates for the moment estimates
-        double b1, b2;
+        float b1, b2;
         // Small constant to prevent division by zero
-        double epsilon;
+        float epsilon;
         // Time step (incremented at each parameter update), mutable to allow const update
         mutable int t;
 
-        // Key = pointer to the parameter's underlying data buffer
-        mutable unordered_map<double*, AdamState> states;
+        mutable unordered_map<mlx::core::array*, AdamState> states;
         // Ensures that states[key] exists and has matrices with size (rows x cols)
-        AdamState& get_or_create_state(double* key, Index rows, Index cols) const;
+        AdamState& get_or_create_state(mlx::core::array* key, const mlx::core::Shape& shape) const;
 
     public:
         /**
@@ -38,7 +40,7 @@ class AdamOptimizer : public Optimizer {
          * @param b1 First moment decay rate
          * @param b2 Second moment decay rate
          */
-        AdamOptimizer(Network* new_network, double stepsize, double b1, double b2);
+        AdamOptimizer(Network* new_network, float stepsize, float b1, float b2);
 
         /**
          * Constructs an Adam optimizer with default hyperparameters

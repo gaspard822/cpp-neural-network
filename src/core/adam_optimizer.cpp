@@ -3,8 +3,12 @@
 #include "mlp/fully_connected_layer.hpp"
 #include "mlp/neural_network.hpp"
 #include "transformer/transformer.hpp"
+#include "core/mlx_utils.hpp"
 
-AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, double b2) :
+using namespace std;
+namespace mx = mlx::core;
+
+AdamOptimizer::AdamOptimizer(Network* new_network, float stepsize, float b1, float b2) :
     Optimizer(new_network), stepsize(stepsize), b1(b1), b2(b2) {
     
     if (b1 < 0.0 || b1 >= 1.0 || b2 < 0.0 || b2 >= 1.0) {
@@ -16,52 +20,59 @@ AdamOptimizer::AdamOptimizer(Network* new_network, double stepsize, double b1, d
 
 AdamOptimizer::AdamOptimizer(Network* new_network) : AdamOptimizer(new_network, 0.001, 0.9, 0.999) {}
 
-AdamState& AdamOptimizer::get_or_create_state(double* key, Index rows, Index cols) const {
-    // operator[] inserts default AdamState if missing
-    AdamState& st = states[key];
-
-    // Eigen default constructs as 0x0 matrices, ensure correct shape
-    if (st.m.rows() != rows || st.m.cols() != cols) {
-        st.m = MatrixXd::Zero(rows, cols);
+AdamState& AdamOptimizer::get_or_create_state(mx::array* key, const mx::Shape& shape) const {
+    auto it = states.find(key);
+    if (it == states.end()) {
+        states[key] = AdamState();
+        states[key].m = mx::zeros(shape, mx::float32);
+        states[key].v = mx::zeros(shape, mx::float32);
     }
-    if (st.v.rows() != rows || st.v.cols() != cols) {
-        st.v = MatrixXd::Zero(rows, cols);
-    }
-    return st;
+    return states[key];
 }
 
 void AdamOptimizer::update_optimizer() {
     vector<Layer*> layers = network->get_layers();
     for (Layer* layer : layers) {
-        for (const auto& p : layer->get_parameters()) {
-            get_or_create_state(p.value_data, p.rows, p.cols);
+        for (const TrainableParameter& p : layer->get_parameters()) {
+            get_or_create_state(p.value, p.value->shape());
         }
     }
 }
 
 void AdamOptimizer::update_parameters() const {
     t++;
-    const double bc1 = 1.0 - pow(b1, t);
-    const double bc2 = 1.0 - pow(b2, t);
+    const float bc1 = 1.0f - pow(b1, t);
+    const float bc2 = 1.0f - pow(b2, t);
 
     vector<Layer*> layers = network->get_layers();
     for (Layer* layer : layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            // Both matrices and vectors appear as MatrixXd views
-            auto weights = p.value();
-            auto gradients = p.grad();
+            mx::array& weights = *p.value;
+            mx::array& gradients = *p.grad;
 
-            AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
+            AdamState& st = get_or_create_state(p.value, weights.shape());
 
-            st.m = b1 * st.m + (1.0 - b1) * gradients;
-            st.v = b2 * st.v + (1.0 - b2) * gradients.array().square().matrix();
+            st.m = b1 * st.m + (1.0f - b1) * gradients;
+            st.v = b2 * st.v + (1.0f - b2) * mx::square(gradients);
 
-            const MatrixXd m_hat = st.m / bc1;
-            const MatrixXd v_hat = st.v / bc2;
+            const mx::array m_hat = st.m / bc1;
+            const mx::array v_hat = st.v / bc2;
 
-            weights -= stepsize * (m_hat.array() / (v_hat.array().sqrt() + epsilon)).matrix();
+            weights = weights - stepsize * (m_hat / (mx::sqrt(v_hat) + epsilon));
         }
     }
+
+    // Eval the new weights and adam states so that the computation graph doesn't become huge
+    vector<mx::array> to_eval;
+    for (Layer* layer : layers) {
+        for (const TrainableParameter& p : layer->get_parameters()) {
+            to_eval.push_back(*p.value);
+            AdamState& st = states[p.value];
+            to_eval.push_back(st.m);
+            to_eval.push_back(st.v);
+        }
+    }
+    mx::eval(to_eval);
 }
 
 OptimizerType AdamOptimizer::get_type() const {
@@ -72,24 +83,12 @@ void AdamOptimizer::save(ofstream& file) const {
     file << t << "\n";
     for (Layer* layer : network->get_layers()) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            auto it = states.find(p.value_data);
-            if (it == states.end()) {
-                // No state yet (shouldn't happen after training) - write zeros
-                for (Index i = 0; i < p.rows * p.cols; i++) file << "0 ";
-                file << "\n";
-                for (Index i = 0; i < p.rows * p.cols; i++) file << "0 ";
-                file << "\n";
+            auto it = states.find(p.value);
+            if (it != states.end()) {
+                save_array(file, it->second.m);
+                save_array(file, it->second.v);
             } else {
-                const MatrixXd& m = it->second.m;
-                const MatrixXd& v = it->second.v;
-                for (Index r = 0; r < m.rows(); r++)
-                    for (Index c = 0; c < m.cols(); c++)
-                        file << m(r, c) << " ";
-                file << "\n";
-                for (Index r = 0; r < v.rows(); r++)
-                    for (Index c = 0; c < v.cols(); c++)
-                        file << v(r, c) << " ";
-                file << "\n";
+                throw runtime_error("Couldn't find the adam state of the parameters of some " + layer->get_layer_name());
             }
         }
     }
@@ -99,13 +98,10 @@ void AdamOptimizer::load(ifstream& file) {
     file >> t;
     for (Layer* layer : network->get_layers()) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            AdamState& st = get_or_create_state(p.value_data, p.rows, p.cols);
-            for (Index r = 0; r < p.rows; r++)
-                for (Index c = 0; c < p.cols; c++)
-                    file >> st.m(r, c);
-            for (Index r = 0; r < p.rows; r++)
-                for (Index c = 0; c < p.cols; c++)
-                    file >> st.v(r, c);
+
+            AdamState& st = get_or_create_state(p.value, p.value->shape());
+            st.m = load_array(file);
+            st.v = load_array(file);
         }
     }
 }

@@ -203,9 +203,9 @@ void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
     }
 }
 
-double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val) {
+float TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val) {
     int N = encoder_tokens_val.size();
-    double loss = 0;
+    float loss = 0.0f;
     for (int i = 0; i < N; i++) {
         const vector<int> decoder_input_token_ids(decoder_tokens_val[i].begin(), decoder_tokens_val[i].end() - 1);
         const vector<int> decoder_target_token_ids(decoder_tokens_val[i].begin() + 1, decoder_tokens_val[i].end());
@@ -218,7 +218,7 @@ double TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_
 void TransformerNetwork::reset_gradients() {
     for (Layer* layer: layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            p.grad().setZero();
+            *p.grad = mx::zeros_like(*p.grad);
         }
     }
 }
@@ -226,8 +226,7 @@ void TransformerNetwork::reset_gradients() {
 void TransformerNetwork::normalize_gradients(int batch_size) {
     for (Layer* layer: layers) {
         for (const TrainableParameter& p : layer->get_parameters()) {
-            auto gradients = p.grad();
-            gradients /= batch_size;
+            *p.grad = *p.grad / batch_size;
         }
     }
 }
@@ -268,7 +267,7 @@ void TransformerNetwork::train(
             optimizer->update_parameters();
             reset_gradients();
         }
-        double loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
+        float loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
         cout << "Loss: " << loss << endl;
     }
 }
@@ -286,7 +285,7 @@ void TransformerNetwork::save_model(const string& path) const {
     ofstream file(path);
     if (!file.is_open()) throw runtime_error("Could not open the file");
     file.good();
-    file << setprecision(numeric_limits<double>::max_digits10);
+    file << setprecision(numeric_limits<float>::max_digits10);
     file << num_encoder_layers << " " << num_decoder_layers << " " << seq << " " << d_model << " " << h << " " << vocab_size << "\n";
     encoder_input_layer->save(file);
     for (Encoder* encoder: encoders) {

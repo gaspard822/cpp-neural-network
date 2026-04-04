@@ -3,6 +3,7 @@
 #include "transformer/multi_head_attention.hpp"
 #include "core/mlx_utils.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :

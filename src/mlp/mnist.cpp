@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <Eigen/Dense>
 #include <random>
 #include <chrono>
 #include "mlp/neural_network.hpp"
@@ -15,11 +14,11 @@
 #include "core/vanilla_sgd_optimizer.hpp"
 
 using namespace std;
-using namespace Eigen;
+namespace mx = mlx::core;
 
 struct MNISTData {
-    MatrixXd images;
-    MatrixXd oneHotLabels;
+    mx::array images;
+    mx::array oneHotLabels;
 };
 
 /**
@@ -33,8 +32,8 @@ MNISTData get_mnist_supervised_data(const int first_row, const int last_row) {
     const int num_features = 784;
     const int num_classes = 10;
 
-    MatrixXd data(num_rows, num_features);
-    MatrixXd labels = MatrixXd::Zero(num_rows, num_classes);
+    vector<float> data(num_rows * num_features);
+    vector<float> labels(num_rows * num_classes, 0.0f);
 
     ifstream file(filename);
     string line;
@@ -61,12 +60,12 @@ MNISTData get_mnist_supervised_data(const int first_row, const int last_row) {
         if (label < 0 || label >= num_classes) {
             throw runtime_error("Invalid label encountered.");
         }
-        labels(row, label) = 1.0;
+        labels[row * num_classes + label] = 1.0f;
         str = end + 1;
 
         // Parse pixel values
         for (int col = 0; col < num_features; col++) {
-            data(row, col) = strtof(str, &end);
+            data[row * num_features + col] = strtof(str, &end) / 255.0f;
             str = end + 1;
         }
 
@@ -74,22 +73,21 @@ MNISTData get_mnist_supervised_data(const int first_row, const int last_row) {
     }
 
     file.close();
-    data /= 255.0f;
 
-    return {data, labels};
+    mx::array images = mx::array(data.data(), {num_rows, num_features}, mx::float32);
+    mx::array oneHotLabels = mx::array(labels.data(), {num_rows, num_classes}, mx::float32);
+    return {images, oneHotLabels};
 }
 
 /**
  * Reads the csv file containing the testing data and returns the normalized images in a matrix (num_samples x num_pixels).
  */
-MatrixXd get_mnist_testing_data(const int first_row, const int last_row) {
+mx::array get_mnist_testing_data(const int first_row, const int last_row) {
     const string filename = "../digit-recognizer/test.csv";
     const int num_rows = last_row - first_row;
     const int num_features = 784;
-    const int num_classes = 10;
 
-    MatrixXd data(num_rows, num_features);
-    // MatrixXd labels = MatrixXd::Zero(num_rows, num_classes);
+    vector<float> data(num_rows * num_features);
 
     ifstream file(filename);
     string line;
@@ -113,7 +111,7 @@ MatrixXd get_mnist_testing_data(const int first_row, const int last_row) {
 
         // Parse pixel values
         for (int col = 0; col < num_features; col++) {
-            data(row, col) = strtof(str, &end);
+            data[row * num_features + col] = strtof(str, &end) / 255.0f;
             str = end + 1;
         }
 
@@ -121,9 +119,7 @@ MatrixXd get_mnist_testing_data(const int first_row, const int last_row) {
     }
 
     file.close();
-    data /= 255.0f;
-
-    return data;
+    return mx::array(data.data(), {num_rows, num_features}, mx::float32);
 }
 
 /**
@@ -131,15 +127,13 @@ MatrixXd get_mnist_testing_data(const int first_row, const int last_row) {
  * matrices used for training, validation and testing. Randomly splits the dataset into these according to the specified
  * sizes.
  */
-void randomly_split_dataset(const MatrixXd& all_data, const MatrixXd& all_labels,
-                   MatrixXd& X_train, MatrixXd& Y_train,
-                   MatrixXd& X_val,   MatrixXd& Y_val,
-                   MatrixXd& X_test,  MatrixXd& Y_test,
-                   int train_size,
-                   int val_size,
-                   int test_size) {
+void randomly_split_dataset(const mx::array& all_data, const mx::array& all_labels,
+                   mx::array& X_train, mx::array& Y_train,
+                   mx::array& X_val,   mx::array& Y_val,
+                   mx::array& X_test,  mx::array& Y_test,
+                   int train_size, int val_size, int test_size) {
 
-    int num_samples = all_data.rows();
+    int num_samples = all_data.shape(0);
     if (train_size + val_size + test_size != num_samples) {
         throw invalid_argument("Sum of split sizes must equal the total number of samples");
     }
@@ -148,28 +142,16 @@ void randomly_split_dataset(const MatrixXd& all_data, const MatrixXd& all_labels
     iota(indices.begin(), indices.end(), 0);
     shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
 
-    X_train = MatrixXd(train_size, all_data.cols());
-    Y_train = MatrixXd(train_size, all_labels.cols());
-    X_val = MatrixXd(val_size, all_data.cols());
-    Y_val = MatrixXd(val_size, all_labels.cols());
-    X_test = MatrixXd(test_size, all_data.cols());
-    Y_test = MatrixXd(test_size, all_labels.cols());
+    mx::array train_idx = mx::array(indices.data(), {train_size}, mx::int32);
+    mx::array val_idx = mx::array(indices.data() + train_size, {val_size}, mx::int32);
+    mx::array test_idx = mx::array(indices.data() + train_size + val_size, {test_size}, mx::int32);
 
-    // Not the most efficient way but works well, doesn't take too much time and didn't find a cleaner way to do this with Eigen
-    for (int i = 0; i < train_size; ++i) {
-        X_train.row(i) = all_data.row(indices[i]);
-        Y_train.row(i) = all_labels.row(indices[i]);
-    }
-
-    for (int i = 0; i < val_size; ++i) {
-        X_val.row(i) = all_data.row(indices[train_size + i]);
-        Y_val.row(i) = all_labels.row(indices[train_size + i]);
-    }
-
-    for (int i = 0; i < test_size; ++i) {
-        X_test.row(i) = all_data.row(indices[train_size + val_size + i]);
-        Y_test.row(i) = all_labels.row(indices[train_size + val_size + i]);
-    }
+    X_train = mx::take(all_data, train_idx, 0);
+    Y_train = mx::take(all_labels, train_idx, 0);
+    X_val = mx::take(all_data, val_idx, 0);
+    Y_val = mx::take(all_labels, val_idx, 0);
+    X_test = mx::take(all_data, test_idx, 0);
+    Y_test = mx::take(all_labels, test_idx, 0);
 }
 
 /**
@@ -179,20 +161,24 @@ void randomly_split_dataset(const MatrixXd& all_data, const MatrixXd& all_labels
 void train_test_mnist() {
     // Get all data
     MNISTData mnist = get_mnist_supervised_data(0, 42000);
-    cout << "Image matrix shape: " << mnist.images.rows() << " x " << mnist.images.cols() << "\n";
-    cout << "Label matrix shape: " << mnist.oneHotLabels.rows() << " x " << mnist.oneHotLabels.cols() << "\n";
-    
-    auto split_time_start = chrono::high_resolution_clock::now();
+    cout << "Image matrix shape: " << mnist.images.shape(0) << " x " << mnist.images.shape(1) << "\n";
+    cout << "Label matrix shape: " << mnist.oneHotLabels.shape(0) << " x " << mnist.oneHotLabels.shape(1) << "\n";
+
     // Split the dataset into training, validation and testing sets
-    MatrixXd X_train, Y_train, X_val, Y_val, X_test, Y_test;
+    auto split_time_start = chrono::high_resolution_clock::now();
+    mx::array X_train = mx::zeros({1}, mx::float32);
+    mx::array Y_train = mx::zeros({1}, mx::float32);
+    mx::array X_val = mx::zeros({1}, mx::float32);
+    mx::array Y_val = mx::zeros({1}, mx::float32);
+    mx::array X_test = mx::zeros({1}, mx::float32);
+    mx::array Y_test = mx::zeros({1}, mx::float32);
     randomly_split_dataset(mnist.images, mnist.oneHotLabels,
                            X_train, Y_train, X_val, Y_val, X_test, Y_test,
                            34000, 4000, 4000);
     auto split_time_end = chrono::high_resolution_clock::now();
     cout << "Time for splitting the data: " << chrono::duration_cast<chrono::milliseconds>(split_time_end - split_time_start).count() << "ms" << endl;
-    
-    // Create a neural network using cross-entropy as a loss function and adam as an optimizer
-    MultiLayerPerceptronNetwork mlp("CrossEntropy", "VanillaSGD");
+
+    MultiLayerPerceptronNetwork mlp("CrossEntropy", "Adam");
 
     // Create layers and add them to the network
     FullyConnectedLayer* layer_1 = new FullyConnectedLayer(new Relu(), 784, 512);
@@ -206,29 +192,15 @@ void train_test_mnist() {
     mlp.get_optimizer()->update_optimizer();
     
     // Train
-    mlp.train(X_train, Y_train, 300, 1024, X_val, Y_val, false, false);
+    mlp.train(X_train, Y_train, 300, 1024, X_val, Y_val, false);
 
-    // Saving the model and loading it again to test the save_model() and load_model() functions
+    mx::array inference = mlp.infer(X_test);
+    int num_samples = X_test.shape(0);
+    int correct = mx::sum(mx::equal(mx::argmax(inference, 1), mx::argmax(Y_test, 1))).item<int>();
+    cout << "Accuracy: " << 100.0 * (float) correct / (float) num_samples << "%" << endl;
+
     // Save the trained model
     mlp.save_model("../models/testing_stuff.txt");
-    // Create a new network and load the architecture and parameters of the previously trained network
-    MultiLayerPerceptronNetwork mlp_test;
-    mlp_test.load_model("../models/testing_stuff.txt");
-    // Infer the testing set
-    MatrixXd inference = mlp_test.infer(X_test);
-    // For each sample, take the index of the logit with the highest value as the prediction
-    int num_samples = X_test.rows();
-    VectorXd prediction(num_samples);
-    VectorXd truth(num_samples);
-    int correct_predictions = 0;
-    // Not the most efficient way but works well, doesn't take too much time and didn't find a cleaner way to do this with Eigen
-    for (int i = 0; i < num_samples; i++) {
-        Index pred, label;
-        inference.row(i).maxCoeff(&pred);
-        Y_test.row(i).maxCoeff(&label);
-        if (pred == label) correct_predictions += 1;
-    }
-    cout << "Accuracy: " << 100.0 * (double) correct_predictions / (double) num_samples << "%" << endl;
 }
 
 /**
@@ -238,18 +210,17 @@ void train_test_mnist() {
  */
 void infer_mnist() {
     int num_samples = 28000;
-    MatrixXd mnist_data = get_mnist_testing_data(0, num_samples);
+    mx::array mnist_data = get_mnist_testing_data(0, num_samples);
     MultiLayerPerceptronNetwork mlp;
     mlp.load_model("../models/testing_stuff.txt");
-    
-    MatrixXd inference = mlp.infer(mnist_data);
-    cout << "(" << inference.rows() << "x" << inference.cols() << ")" << endl;
-    VectorXd prediction(num_samples);
+
+    mx::array inference = mlp.infer(mnist_data);
+    cout << "(" << inference.shape(0) << "x" << inference.shape(1) << ")" << endl;
+    mx::array predictions = mx::argmax(inference, 1);
+    mx::eval(predictions);
     ofstream file("../models/predictions.csv");
     file << "ImageId,Label" << endl;
     for (int i = 0; i < num_samples; i++) {
-        Index pred;
-        inference.row(i).maxCoeff(&pred);
-        file << i+1 << "," << pred << "\n";
+        file << i + 1 << "," << mx::slice(predictions, {i}, {i + 1}).item<int>() << "\n";
     }
 }

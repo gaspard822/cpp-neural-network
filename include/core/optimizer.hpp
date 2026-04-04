@@ -50,8 +50,8 @@ class Optimizer {
          */
         virtual OptimizerType get_type() const = 0;
 
-        virtual void save(ofstream& file) const = 0;
-        virtual void load(ifstream& file) = 0;
+        virtual void save(std::ofstream& file) const = 0;
+        virtual void load(std::ifstream& file) = 0;
 };
 
 #endif

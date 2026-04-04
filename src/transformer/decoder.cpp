@@ -5,6 +5,7 @@
 #include "core/sigmoid.hpp"
 #include "core/identity.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 Decoder::Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
@@ -27,43 +28,43 @@ Decoder::Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
 }
 
 void Decoder::forward(const mx::array& encoder_input, const mx::array& decoder_input) {
-    ln1->forward_mlx(decoder_input);
-    mha_masked->forward_mlx(ln1->get_output_mlx());
-    mx::array after_masked = mha_masked->get_output_mlx() + decoder_input;
+    ln1->forward(decoder_input);
+    mha_masked->forward(ln1->get_output());
+    mx::array after_masked = mha_masked->get_output() + decoder_input;
 
-    ln2->forward_mlx(after_masked);
-    mha_cross->set_encoder_output_mlx(encoder_input);
-    mha_cross->forward_mlx(ln2->get_output_mlx());
-    mx::array after_cross = mha_cross->get_output_mlx() + after_masked;
+    ln2->forward(after_masked);
+    mha_cross->set_encoder_output(encoder_input);
+    mha_cross->forward(ln2->get_output());
+    mx::array after_cross = mha_cross->get_output() + after_masked;
 
-    ln3->forward_mlx(after_cross);
-    ff->forward_mlx(ln3->get_output_mlx());
-    output = ff->get_output_mlx() + after_cross;
+    ln3->forward(after_cross);
+    ff->forward(ln3->get_output());
+    output = ff->get_output() + after_cross;
 }
 
 void Decoder::backward(const mx::array& d_output) {
-    ff->backward_mlx(d_output);
-    ln3->backward_mlx(ff->get_d_input_mlx());
-    mx::array d_after_cross = ln3->get_d_input_mlx() + d_output;
+    ff->backward(d_output);
+    ln3->backward(ff->get_d_input());
+    mx::array d_after_cross = ln3->get_d_input() + d_output;
 
-    mha_cross->backward_mlx(d_after_cross);
-    d_encoder_input = mha_cross->get_d_encoder_output_mlx();
-    ln2->backward_mlx(mha_cross->get_d_input_mlx());
-    mx::array d_after_masked = ln2->get_d_input_mlx() + d_after_cross;
+    mha_cross->backward(d_after_cross);
+    d_encoder_input = mha_cross->get_d_encoder_output();
+    ln2->backward(mha_cross->get_d_input());
+    mx::array d_after_masked = ln2->get_d_input() + d_after_cross;
 
-    mha_masked->backward_mlx(d_after_masked);
-    ln1->backward_mlx(mha_masked->get_d_input_mlx());
-    d_input = ln1->get_d_input_mlx() + d_after_masked;
+    mha_masked->backward(d_after_masked);
+    ln1->backward(mha_masked->get_d_input());
+    d_input = ln1->get_d_input() + d_after_masked;
 }
 
 mx::array Decoder::infer(const mx::array& encoder_input, const mx::array& decoder_input) {
-    mha_cross->set_encoder_output_mlx(encoder_input);
-    mx::array x_norm1 = ln1->infer_mlx(decoder_input);
-    mx::array after_masked = mha_masked->infer_mlx(x_norm1) + decoder_input;
-    mx::array x_norm2 = ln2->infer_mlx(after_masked);
-    mx::array after_cross = mha_cross->infer_mlx(x_norm2) + after_masked;
-    mx::array x_norm3 = ln3->infer_mlx(after_cross);
-    return ff->infer_mlx(x_norm3) + after_cross;
+    mha_cross->set_encoder_output(encoder_input);
+    mx::array x_norm1 = ln1->infer(decoder_input);
+    mx::array after_masked = mha_masked->infer(x_norm1) + decoder_input;
+    mx::array x_norm2 = ln2->infer(after_masked);
+    mx::array after_cross = mha_cross->infer(x_norm2) + after_masked;
+    mx::array x_norm3 = ln3->infer(after_cross);
+    return ff->infer(x_norm3) + after_cross;
 }
 
 const mx::array& Decoder::get_output() const {

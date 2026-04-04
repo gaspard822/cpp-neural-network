@@ -9,7 +9,7 @@ class LinearLayer: public Layer {
         mlx::core::array X;
         mlx::core::array W, d_W;
         mlx::core::array b, d_b;
-        vector<TrainableParameter> params;
+        std::vector<TrainableParameter> params;
         int d_model, vocab_size;
 
     public:
@@ -21,16 +21,16 @@ class LinearLayer: public Layer {
 
         mlx::core::array infer(const mlx::core::array& layer_input) const override;
 
-        const vector<TrainableParameter>& get_parameters() const override;
+        const std::vector<TrainableParameter>& get_parameters() const override;
         const mlx::core::array& get_output() const override;
         const mlx::core::array& get_d_input() const override;
 
-        string get_layer_name() const override;
-        string get_activation_name() const override;
+        std::string get_layer_name() const override;
+        std::string get_activation_name() const override;
         LayerType get_type() const override;
 
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif

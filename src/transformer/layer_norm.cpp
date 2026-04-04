@@ -3,9 +3,10 @@
 #include "transformer/layer_norm.hpp"
 #include "core/mlx_utils.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
-LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon(1e-8),
+LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon(1e-8f),
                                              inv_sqrt_var_plus_epsilon(mx::zeros({seq}, mx::float32)),
                                              gamma(mx::ones({1, d_model}, mx::float32)),
                                              beta(mx::zeros({1, d_model}, mx::float32)),

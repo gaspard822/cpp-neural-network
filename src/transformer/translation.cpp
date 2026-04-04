@@ -18,14 +18,14 @@ struct TrainingConfig {
     // Training hyperparameters
     int num_epochs = 1;
     int batch_size = 256;
-    double learning_rate = 0.0002;
-    double beta1 = 0.9;
-    double beta2 = 0.999;
+    float learning_rate = 0.0002;
+    float beta1 = 0.9;
+    float beta2 = 0.999;
 
     // Dataset parameters
     int N = 100000;  // Number of sentence pairs to use (max 183,251 available)
-    double train_size = 0.8;
-    double val_size = 0.1;
+    float train_size = 0.8;
+    float val_size = 0.1;
 
     // Paths - parallel text files
     string en_data_path = "../translation/news-commentary-v9.fr-en.en";
@@ -201,7 +201,7 @@ pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_par
     return {en_tokens, fr_tokens};
 }
 
-DatasetSplit split_dataset(const vector<vector<int>>& en_tokens, const vector<vector<int>>& fr_tokens, double train_size, double val_size) {
+DatasetSplit split_dataset(const vector<vector<int>>& en_tokens, const vector<vector<int>>& fr_tokens, float train_size, float val_size) {
     int N = en_tokens.size();
 
     int num_train_samples = static_cast<int>(train_size * N);

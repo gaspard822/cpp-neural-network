@@ -12,17 +12,17 @@ class CrossEntropy : public LossFunction {
          * Computes the average cross-entropy loss over all samples.
          * @param y_true Matrix of true one-hot encoded labels
          * @param y_pred Matrix of predicted probabilities
-         * @return double Scalar cross-entropy loss
+         * @return float Scalar cross-entropy loss
          */
-        double compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const override;
+        float compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const override;
 
         /**
          * Computes the average cross-entropy loss over all samples.
          * @param y_true Vector of the true labels
          * @param y_pred Matrix of predicted probabilities
-         * @return double Scalar cross-entropy loss
+         * @return float Scalar cross-entropy loss
          */
-        double compute(const std::vector<int>& y_true, const mlx::core::array& y_pred) const;
+        float compute(const std::vector<int>& y_true, const mlx::core::array& y_pred) const;
 
         /**
          * Computes the gradient of the cross-entropy loss with respect to the predictions.

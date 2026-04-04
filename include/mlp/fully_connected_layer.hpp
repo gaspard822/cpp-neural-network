@@ -4,18 +4,18 @@
 #include "core/layer.hpp"
 #include "core/activation_function.hpp"
 
+
 /**
  * Implements a fully connected layer with batch normalization and activation.
  */
 class FullyConnectedLayer : public Layer {
     private:
         // The mathematical signification of each of these can be found in the "Technical details" section of the README
-        // Some of these are stored during the forwarding in order to be used to compute gradients during the backpropagation
-        RowVectorXd gamma, beta, d_gamma, d_beta, running_mean, running_variance, inv_sqrt_var_plus_epsilon;
-        MatrixXd weights, d_weights, a_hat, a_bar, z;
-        VectorXd bias, d_bias;
-        vector<TrainableParameter> params;
-        double momentum;
+        mlx::core::array gamma, beta, d_gamma, d_beta, running_mean, running_variance, inv_sqrt_var_plus_epsilon;
+        mlx::core::array weights, d_weights, a_hat, a_bar, z;
+        mlx::core::array bias, d_bias;
+        std::vector<TrainableParameter> params;
+        float momentum;
         ActivationFunction* activation;
     
     public:
@@ -28,20 +28,6 @@ class FullyConnectedLayer : public Layer {
          */
         FullyConnectedLayer(ActivationFunction* activation, int input_size, int output_size);
 
-        /**
-         * Constructs a fully connected layer with custom parameters.
-         * @param activation Pointer to the activation function
-         * @param init_weights Initial weights matrix
-         * @param init_bias Initial bias vector
-         * @param init_gamma Initial gamma for batch norm
-         * @param init_beta Initial beta for batch norm
-         */
-        FullyConnectedLayer(ActivationFunction* activation,
-                            const MatrixXd& init_weights,
-                            const VectorXd& init_bias,
-                            const RowVectorXd& init_gamma,
-                            const RowVectorXd& init_beta);
-
         ~FullyConnectedLayer();
 
         /**
@@ -49,46 +35,39 @@ class FullyConnectedLayer : public Layer {
          * README for context on the internal variable names used in this function.
          * @param input Input matrix (samples x features)
          */
-        void forward(const MatrixXd& input) override;
+        void forward(const mlx::core::array& input) override;
 
         /**
-        * Does the backward pass and computes input gradients and saves the gradient with respect to the layer input in d_input.
+        * Does the backward pass, computes and saves the gradient with respect to the layer input in d_input.
         * See the "Technical details" section of the README for context on the internal variable names used in this function.
         * @param d_output Gradient from the following layer
         */
-        void backward(const MatrixXd& d_output) override;
+        void backward(const mlx::core::array& d_output) override;
 
         /**
          * Performs inference without modifying the internal state of the fully connected layer.
          * @param layer_input Input of the layer (samples x features)
-         * @return MatrixXd Output of the layer
+         * @return mlx::core::array Output of the layer
          */
-        MatrixXd infer(const MatrixXd& layer_input) const override;
+        mlx::core::array infer(const mlx::core::array& layer_input) const override;
 
         // Various straightforward getters
-        const vector<TrainableParameter>& get_parameters() const override;
-        const MatrixXd& get_output() const override;
-        const MatrixXd& get_d_input() const override;
-        const MatrixXd& get_weights() const;
-        const VectorXd& get_bias() const;
-        const RowVectorXd& get_gamma() const;
-        const RowVectorXd& get_beta() const;
-        const RowVectorXd& get_running_mean() const;
-        const RowVectorXd& get_running_variance() const;
-        const RowVectorXd& get_inv_sqrt_var_plus_epsilon() const;
+        const std::vector<TrainableParameter>& get_parameters() const override;
+        const mlx::core::array& get_output() const override;
+        const mlx::core::array& get_d_input() const override;
 
         /**
          * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
          * @return string Name of the loss function
          */
-        string get_layer_name() const override;
+        std::string get_layer_name() const override;
 
         /**
          * Returns the name of the activation function used by the layer (used in save_model(const string& path) and
          * load_model(const string& path)).
          * @return string Name of the loss function
          */
-        string get_activation_name() const override;
+        std::string get_activation_name() const override;
 
         /**
          * Returns the type of the layer (fully connected layer).
@@ -96,13 +75,8 @@ class FullyConnectedLayer : public Layer {
          */
         LayerType get_type() const override;
 
-        // Various straightforward setters
-        void set_running_mean(RowVectorXd new_mean);
-        void set_running_variance(RowVectorXd new_mean);
-        void set_inv_sqrt_var_plus_epsilon(RowVectorXd new_inv_sqrt_var_plus_epsilon);
-
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif

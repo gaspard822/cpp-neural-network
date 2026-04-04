@@ -5,6 +5,7 @@
 #include "core/sigmoid.hpp"
 #include "core/identity.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation) :
@@ -23,30 +24,30 @@ Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
 }
 
 void Encoder::forward(const mx::array& input) {
-    ln1->forward_mlx(input);
-    mha_self->forward_mlx(ln1->get_output_mlx());
-    mx::array after_attn = mha_self->get_output_mlx() + input;
+    ln1->forward(input);
+    mha_self->forward(ln1->get_output());
+    mx::array after_attn = mha_self->get_output() + input;
 
-    ln2->forward_mlx(after_attn);
-    ff->forward_mlx(ln2->get_output_mlx());
-    output = ff->get_output_mlx() + after_attn;
+    ln2->forward(after_attn);
+    ff->forward(ln2->get_output());
+    output = ff->get_output() + after_attn;
 }
 
 void Encoder::backward(const mx::array& d_output) {
-    ff->backward_mlx(d_output);
-    ln2->backward_mlx(ff->get_d_input_mlx());
-    mx::array d_after_attn = ln2->get_d_input_mlx() + d_output;
+    ff->backward(d_output);
+    ln2->backward(ff->get_d_input());
+    mx::array d_after_attn = ln2->get_d_input() + d_output;
 
-    mha_self->backward_mlx(d_after_attn);
-    ln1->backward_mlx(mha_self->get_d_input_mlx());
-    d_input = ln1->get_d_input_mlx() + d_after_attn;
+    mha_self->backward(d_after_attn);
+    ln1->backward(mha_self->get_d_input());
+    d_input = ln1->get_d_input() + d_after_attn;
 }
 
 mx::array Encoder::infer(const mx::array& input) {
-    mx::array x_norm1 = ln1->infer_mlx(input);
-    mx::array after_attn = mha_self->infer_mlx(x_norm1) + input;
-    mx::array x_norm2 = ln2->infer_mlx(after_attn);
-    return ff->infer_mlx(x_norm2) + after_attn;
+    mx::array x_norm1 = ln1->infer(input);
+    mx::array after_attn = mha_self->infer(x_norm1) + input;
+    mx::array x_norm2 = ln2->infer(after_attn);
+    return ff->infer(x_norm2) + after_attn;
 }
 
 const mx::array& Encoder::get_output() const {

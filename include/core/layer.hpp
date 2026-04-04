@@ -1,38 +1,15 @@
 #ifndef LAYER_HPP
 #define LAYER_HPP
 
-#include <Eigen/Dense>
 #include <mlx/mlx.h>
 #include <memory>
 
-using namespace Eigen;
-using namespace std;
-
 
 struct TrainableParameter {
-    double* value_data = nullptr;
-    double* grad_data  = nullptr;
-    Index rows = 0;
-    Index cols = 0;
+    mlx::core::array* value;
+    mlx::core::array* grad;
 
-    TrainableParameter() = default;
-
-    // Matrix parameter
-    TrainableParameter(MatrixXd& value, MatrixXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(value.rows()), cols(value.cols()) {}
-
-    // Vector parameter (treat as N x 1)
-    TrainableParameter(VectorXd& value, VectorXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(value.size()), cols(1) {}
-
-    // RowVector parameter (treat as 1 x N)
-    TrainableParameter(RowVectorXd& value, RowVectorXd& grad) : value_data(value.data()), grad_data(grad.data()), rows(1), cols(value.size()) {}
-
-    // Views for optimizers as matrices
-    Map<MatrixXd> value() const {
-        return Map<MatrixXd>(value_data, rows, cols);
-    }
-    Map<MatrixXd> grad() const {
-        return Map<MatrixXd>(grad_data, rows, cols);
-    }
+    TrainableParameter(mlx::core::array& value, mlx::core::array& grad): value(&value), grad(&grad) {}
 };
 
 enum class LayerType {
@@ -76,7 +53,7 @@ class Layer {
          */
         virtual mlx::core::array infer(const mlx::core::array& layer_input) const = 0;
 
-        virtual const vector<TrainableParameter>& get_parameters() const = 0;
+        virtual const std::vector<TrainableParameter>& get_parameters() const = 0;
 
         // Straightforward getters
         virtual const mlx::core::array& get_output() const = 0;
@@ -86,14 +63,14 @@ class Layer {
          * Returns the name of the layer (used in save_model(const string& path) and load_model(const string& path)).
          * @return string Name of the layer
          */
-        virtual string get_layer_name() const = 0;
+        virtual std::string get_layer_name() const = 0;
 
         /**
          * Returns the name of the activation function used by the layer (used in save_model(const string& path) and
          * load_model(const string& path)).
          * @return string Name of the layer's activation function
          */
-        virtual string get_activation_name() const = 0;
+        virtual std::string get_activation_name() const = 0;
 
         /**
          * Returns the type of the layer.
@@ -105,13 +82,13 @@ class Layer {
          * Saves the layer's weights and hyperparameters to a stream.
          * @param file Stream to which we save the layer
          */
-        virtual void save(ofstream& file) const = 0;
+        virtual void save(std::ofstream& file) const = 0;
 
         /**
          * Loads the layer's weights and hyperparameters from a stream.
          * @param file Stream from which to load the layer
          */
-        virtual void load(ifstream& file) = 0;        
+        virtual void load(std::ifstream& file) = 0;        
 };
 
 #endif

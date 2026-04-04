@@ -10,7 +10,7 @@ class FeedForward: public Layer {
         mlx::core::array X, U, H;  // intermediary computations needed for the backpropagation
         mlx::core::array W1, W2, d_W1, d_W2;
         mlx::core::array b1, b2, d_b1, d_b2;
-        vector<TrainableParameter> params;
+        std::vector<TrainableParameter> params;
         ActivationFunction* activation;
         int seq, d_model, d_ff;
 
@@ -23,16 +23,16 @@ class FeedForward: public Layer {
 
         mlx::core::array infer(const mlx::core::array& layer_input) const override;
 
-        const vector<TrainableParameter>& get_parameters() const override;
+        const std::vector<TrainableParameter>& get_parameters() const override;
         const mlx::core::array& get_output() const override;
         const mlx::core::array& get_d_input() const override;
 
-        string get_layer_name() const override;
-        string get_activation_name() const override;
+        std::string get_layer_name() const override;
+        std::string get_activation_name() const override;
         LayerType get_type() const override;
 
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif

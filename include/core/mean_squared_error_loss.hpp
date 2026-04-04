@@ -12,9 +12,9 @@ class MeanSquaredError : public LossFunction {
          * Computes the average mean squared error between predictions and targets.
          * @param y_true Matrix of true values
          * @param y_pred Matrix of predicted values
-         * @return double Scalar mean squared error
+         * @return float Scalar mean squared error
          */
-        double compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const override;
+        float compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const override;
 
         /**
          * Computes the gradient of the MSE loss with respect to the predictions.

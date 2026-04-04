@@ -3,6 +3,7 @@
 #include "transformer/linear_layer.hpp"
 #include "core/mlx_utils.hpp"
 
+using namespace std;
 namespace mx = mlx::core;
 
 LinearLayer::LinearLayer(int d_model, int vocab_size) : d_model(d_model), vocab_size(vocab_size),

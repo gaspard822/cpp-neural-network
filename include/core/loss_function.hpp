@@ -21,9 +21,9 @@ class LossFunction {
          * Computes the loss value between predictions and true labels.
          * @param y_true Matrix of true labels (one-hot or continuous) (samples x features)
          * @param y_pred Matrix of predicted outputs (samples x features)
-         * @return double Scalar loss value
+         * @return float Scalar loss value
          */
-        virtual double compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const = 0;
+        virtual float compute(const mlx::core::array& y_true, const mlx::core::array& y_pred) const = 0;
 
         /**
          * Computes the derivative of the loss with respect to the predictions.

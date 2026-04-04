@@ -14,7 +14,7 @@ class Decoder {
         MultiHeadAttention* mha_cross;
         LayerNorm* ln3;
         FeedForward* ff;
-        vector<Layer*> layers;
+        std::vector<Layer*> layers;
         mlx::core::array output;
         mlx::core::array d_input;
         mlx::core::array d_encoder_input;
@@ -29,10 +29,10 @@ class Decoder {
         const mlx::core::array& get_output() const;
         const mlx::core::array& get_d_input() const;
         const mlx::core::array& get_d_encoder_input() const;
-        const vector<Layer*>& get_layers();
+        const std::vector<Layer*>& get_layers();
 
-        void save(ofstream& file) const;
-        void load(ifstream& file);
+        void save(std::ofstream& file) const;
+        void load(std::ifstream& file);
 };
 
 #endif

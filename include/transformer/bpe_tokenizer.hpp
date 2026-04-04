@@ -6,11 +6,9 @@
 #include <unordered_map>
 #include <utility>
 
-using namespace std;
-
 class BPETokenizer {
     private:
-        using Word = vector<string>;
+        using Word = std::vector<std::string>;
 
         struct WordEntry {
             Word tokens;
@@ -18,10 +16,10 @@ class BPETokenizer {
         };
 
         // Learned merges in order.
-        vector<pair<string, string>> merge_rules;
+        std::vector<std::pair<std::string, std::string>> merge_rules;
 
-        unordered_map<string, int> token_to_id;
-        vector<string> id_to_token;
+        std::unordered_map<std::string, int> token_to_id;
+        std::vector<std::string> id_to_token;
 
     public:
         // Special tokens (fixed IDs)
@@ -37,52 +35,52 @@ class BPETokenizer {
         BPETokenizer();
 
         // Helpers
-        static string to_lower_ascii(string sentence);
-        static vector<string> split_whitespace(const string& sentence);
+        static std::string to_lower_ascii(std::string sentence);
+        static std::vector<std::string> split_whitespace(const std::string& sentence);
 
-        static Word word_to_char_tokens(const string& word); // chars + </w>
+        static Word word_to_char_tokens(const std::string& word); // chars + </w>
 
         // Apply ONE merge to a token sequence
-        static void apply_merge_inplace(Word& tokens, const string& a, const string& b);
+        static void apply_merge_inplace(Word& tokens, const std::string& a, const std::string& b);
 
         // Apply all learned merges to a word (used for encoding)
         void apply_all_merges_inplace(Word& tokens) const;
 
         // Build vocab from final corpus
-        void build_vocab_from_entries(const vector<WordEntry>& entries, int vocab_size);
+        void build_vocab_from_entries(const std::vector<WordEntry>& entries, int vocab_size);
 
         // Count adjacent token pairs across corpus (weighted by word frequency)
-        static void count_pair_frequencies(const vector<WordEntry>& entries, unordered_map<string, long long>& pair_freq);
+        static void count_pair_frequencies(const std::vector<WordEntry>& entries, std::unordered_map<std::string, long long>& pair_freq);
 
         // Pair key encoding: "A\x1FB" (unit separator)
-        static string make_token_pair(const string& a, const string& b);
-        static void split_token_pair(const string& key, string& a, string& b);
+        static std::string make_token_pair(const std::string& a, const std::string& b);
+        static void split_token_pair(const std::string& key, std::string& a, std::string& b);
 
         // Count unique tokens across all entries + 4 specials
-        static int compute_token_count(const vector<WordEntry>& entries);
+        static int compute_token_count(const std::vector<WordEntry>& entries);
 
         // Train on a shared corpus (e.g., English + French sentences together).
         // vocab_size includes special tokens.
-        void train(const vector<string>& sentences, int vocab_size);
+        void train(const std::vector<std::string>& sentences, int vocab_size);
 
         // Encode a sentence into its token IDs
-        vector<int> encode(const string& raw_sentence, bool add_sos = false, bool add_eos = false) const;
+        std::vector<int> encode(const std::string& raw_sentence, bool add_sos = false, bool add_eos = false) const;
 
         // Decode token IDs -> sentence (best-effort)
-        string decode(const vector<int>& ids, bool remove_special = true) const;
+        std::string decode(const std::vector<int>& ids, bool remove_special = true) const;
 
         int get_vocab_size() const;
-        int id_of(const string& token) const;
+        int id_of(const std::string& token) const;
 
-        const vector<string>& get_id_to_token() const;
-        const unordered_map<string, int>& get_token_to_id() const;
-        const vector<pair<string, string>>& get_merge_rules() const;
+        const std::vector<std::string>& get_id_to_token() const;
+        const std::unordered_map<std::string, int>& get_token_to_id() const;
+        const std::vector<std::pair<std::string, std::string>>& get_merge_rules() const;
 
         // Save tokenizer to file
-        void save(const string& path) const;
+        void save(const std::string& path) const;
 
         // Load tokenizer from file
-        void load(const string& path);
+        void load(const std::string& path);
 
 };
 

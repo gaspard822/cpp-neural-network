@@ -12,7 +12,7 @@ class Encoder {
         MultiHeadAttention* mha_self;
         LayerNorm* ln2;
         FeedForward* ff;
-        vector<Layer*> layers;
+        std::vector<Layer*> layers;
         ActivationFunction* activation;
         mlx::core::array output;
         mlx::core::array d_input;
@@ -24,10 +24,10 @@ class Encoder {
         mlx::core::array infer(const mlx::core::array& input);
         const mlx::core::array& get_output() const;
         const mlx::core::array& get_d_input() const;
-        const vector<Layer*>& get_layers();
+        const std::vector<Layer*>& get_layers();
 
-        void save(ofstream& file) const;
-        void load(ifstream& file);
+        void save(std::ofstream& file) const;
+        void load(std::ifstream& file);
 };
 
 #endif

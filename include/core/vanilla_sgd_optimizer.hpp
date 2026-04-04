@@ -13,14 +13,14 @@
 class VanillaSGDOptimizer : public Optimizer {
     private:
         // Learning rate for SGD updates
-        double stepsize;
+        float stepsize;
     public:
         /**
          * Constructs a vanilla SGD optimizer with a specified learning rate.
          * @param new_nn Pointer to the neural network to optimize
          * @param stepsize Learning rate
          */
-        VanillaSGDOptimizer(Network* new_network, double stepsize);
+        VanillaSGDOptimizer(Network* new_network, float stepsize);
 
         ~VanillaSGDOptimizer() = default;
         

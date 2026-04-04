@@ -4,8 +4,8 @@
 using namespace std;
 namespace mx = mlx::core;
 
-double MeanSquaredError::compute(const mx::array& y_true, const mx::array& y_pred) const {
-    return mx::sum(mx::square(y_true - y_pred)).item<double>() / y_true.shape(0);
+float MeanSquaredError::compute(const mx::array& y_true, const mx::array& y_pred) const {
+    return mx::sum(mx::square(y_true - y_pred)).item<float>() / y_true.shape(0);
 }
 
 mx::array MeanSquaredError::derivative(const mx::array& y_true, const mx::array& y_pred) const {

@@ -4,7 +4,7 @@
 using namespace std;
 namespace mx = mlx::core;
 
-double CrossEntropy::compute(const mx::array& y_true, const mx::array& y_pred) const {
+float CrossEntropy::compute(const mx::array& y_true, const mx::array& y_pred) const {
     // Shift logits for numerical stability
     mx::array z_max = mx::max(y_pred, 1, true);
     mx::array shifted = y_pred - z_max;
@@ -14,7 +14,7 @@ double CrossEntropy::compute(const mx::array& y_true, const mx::array& y_pred) c
 
     // Compute loss: -z_y + z_max + log(sum(exp))
     mx::array true_logits = mx::sum(y_true * y_pred, 1, true);
-    return mx::mean(-true_logits + z_max + log_sum_exp).item<double>();
+    return mx::mean(-true_logits + z_max + log_sum_exp).item<float>();
 }
 
 mx::array CrossEntropy::derivative(const mx::array& y_true, const mx::array& y_pred) const {
@@ -26,7 +26,7 @@ mx::array CrossEntropy::derivative(const mx::array& y_true, const mx::array& y_p
 }
 
 // Does the same computation as the other CrossEntropy::compute(), but doesn't need one-hot enoding
-double CrossEntropy::compute(const vector<int>& y_true, const mx::array& y_pred) const {
+float CrossEntropy::compute(const vector<int>& y_true, const mx::array& y_pred) const {
     int T = y_true.size();
     int V = y_pred.shape(1);
 
@@ -40,7 +40,7 @@ double CrossEntropy::compute(const vector<int>& y_true, const mx::array& y_pred)
     mx::array true_logits = mx::take(mx::reshape(y_pred, {T * V}), flat_idx);
 
     mx::array loss = -true_logits + mx::reshape(z_max, {T}) + mx::reshape(log_sum_exp, {T});
-    return mx::mean(loss).item<double>();
+    return mx::mean(loss).item<float>();
 }
 
 mx::array CrossEntropy::derivative(const vector<int>& y_true, const mx::array& y_pred) const {

@@ -15,10 +15,10 @@ class MultiHeadAttention : public Layer {
         AttentionMode mode;
         mlx::core::array X;
         mlx::core::array encoder_output, d_encoder_output;
-        vector<mlx::core::array> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
-        vector<mlx::core::array> Q, K, V;
-        vector<mlx::core::array> softmaxJ, head;
-        vector<TrainableParameter> params;
+        std::vector<mlx::core::array> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
+        std::vector<mlx::core::array> Q, K, V;
+        std::vector<mlx::core::array> softmaxJ, head;
+        std::vector<TrainableParameter> params;
         int seq, d_model, h, d_k, d_v;
 
         // Pre-computed masks for masked attention
@@ -36,21 +36,21 @@ class MultiHeadAttention : public Layer {
 
         void set_encoder_output(const mlx::core::array& enc_out);
 
-        const vector<TrainableParameter>& get_parameters() const override;
+        const std::vector<TrainableParameter>& get_parameters() const override;
         const mlx::core::array& get_output() const override;
         const mlx::core::array& get_d_input() const override;
         const mlx::core::array& get_d_encoder_output() const;
 
-        string get_layer_name() const override;
-        string get_activation_name() const override;
+        std::string get_layer_name() const override;
+        std::string get_activation_name() const override;
         LayerType get_type() const override;
 
         AttentionMode get_mode() const;
         bool is_cross_attention() const;
         bool is_masked_attention() const;
 
-        void save(ofstream& file) const override;
-        void load(ifstream& file) override;
+        void save(std::ofstream& file) const override;
+        void load(std::ifstream& file) override;
 };
 
 #endif

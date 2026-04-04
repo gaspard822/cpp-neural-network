@@ -15,8 +15,8 @@ int main() {
     // infer_mnist();
 
     TrainingConfig cfg;
-    // init_transformer_model(cfg);
-    train_transformer_model(cfg, false, false);
+    init_transformer_model(cfg);
+    // train_transformer_model(cfg, false, false);
 
     return 0;
 }
