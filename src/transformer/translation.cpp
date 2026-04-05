@@ -6,6 +6,8 @@
 #include "core/cross_entropy_loss.hpp"
 #include "core/adam_optimizer.hpp"
 
+using namespace std;
+
 struct TrainingConfig {
     // Model architecture
     int num_encoder_layers = 1;

@@ -15,9 +15,9 @@ class MultiHeadAttention : public Layer {
         AttentionMode mode;
         mlx::core::array X;
         mlx::core::array encoder_output, d_encoder_output;
-        std::vector<mlx::core::array> WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
-        std::vector<mlx::core::array> Q, K, V;
-        std::vector<mlx::core::array> softmaxJ, head;
+        mlx::core::array WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
+        mlx::core::array Q, K, V;
+        mlx::core::array softmaxJ, head;
         std::vector<TrainableParameter> params;
         int seq, d_model, h, d_k, d_v;
 

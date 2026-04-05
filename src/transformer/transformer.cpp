@@ -252,8 +252,10 @@ void TransformerNetwork::train(
         shuffle(indices.begin(), indices.end(), gen);
 
         int count = 0;
+        chrono::time_point<chrono::high_resolution_clock> start_timer, end_timer;
         for (int start = 0; start < N; start += batch_size) {
             int end = min(start + batch_size, N);
+            start_timer = chrono::high_resolution_clock::now();
             for (int i = start; i < end; i++) {
                 if (count % 10000 == 0) cout << "Trained on " << count << " samples" << endl;
                 count += 1;
@@ -269,6 +271,8 @@ void TransformerNetwork::train(
             reset_gradients();
             float loss = compute_validation_loss(encoder_tokens_val, decoder_tokens_val);
             cout << "Loss: " << loss << endl;
+            end_timer = chrono::high_resolution_clock::now();
+            cout << "Time: " << chrono::duration_cast<chrono::milliseconds>(end_timer - start_timer).count() << "ms" << endl;
         }
     }
 }
