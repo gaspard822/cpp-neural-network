@@ -27,12 +27,14 @@ Decoder::Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
     layers.push_back(ff);
 }
 
-void Decoder::forward(const mx::array& encoder_input, const mx::array& decoder_input) {
+void Decoder::forward(const mx::array& encoder_input, const mx::array& decoder_input, const mx::array& encoder_padding_mask, const mx::array& decoder_padding_mask) {
     ln1->forward(decoder_input);
+    mha_masked->set_padding_mask(decoder_padding_mask);
     mha_masked->forward(ln1->get_output());
     mx::array after_masked = mha_masked->get_output() + decoder_input;
 
     ln2->forward(after_masked);
+    mha_cross->set_padding_mask(encoder_padding_mask);
     mha_cross->set_encoder_output(encoder_input);
     mha_cross->forward(ln2->get_output());
     mx::array after_cross = mha_cross->get_output() + after_masked;

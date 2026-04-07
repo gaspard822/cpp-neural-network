@@ -19,7 +19,7 @@ class Encoder {
         
     public:
         Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);
-        void forward(const mlx::core::array& input);
+        void forward(const mlx::core::array& input, const mlx::core::array& padding_mask);
         void backward(const mlx::core::array& d_output);
         mlx::core::array infer(const mlx::core::array& input);
         const mlx::core::array& get_output() const;

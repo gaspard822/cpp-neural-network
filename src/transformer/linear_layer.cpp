@@ -25,8 +25,8 @@ void LinearLayer::forward(const mx::array& input) {
 }
 
 void LinearLayer::backward(const mlx::core::array& d_output) {
-    d_W = d_W + mx::matmul(mx::transpose(X), d_output);
-    d_b = d_b + mx::sum(d_output, 0, true);
+    d_W = mx::sum(mx::matmul(mx::transpose(X, {0, 2, 1}), d_output), 0);
+    d_b = mx::sum(mx::sum(d_output, 0), 0, true);
     d_input = mx::matmul(d_output, mx::transpose(W));
 }
 

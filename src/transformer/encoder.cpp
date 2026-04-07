@@ -23,8 +23,10 @@ Encoder::Encoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, Activa
     layers.push_back(ff);
 }
 
-void Encoder::forward(const mx::array& input) {
+void Encoder::forward(const mx::array& input, const mx::array& padding_mask) {
+    // input has shape {num_sentences, max_sentence_length, d_model}
     ln1->forward(input);
+    mha_self->set_padding_mask(padding_mask);
     mha_self->forward(ln1->get_output());
     mx::array after_attn = mha_self->get_output() + input;
 

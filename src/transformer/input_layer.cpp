@@ -9,6 +9,7 @@ using namespace std;
 namespace mx = mlx::core;
 
 InputLayer::InputLayer(int seq, int d_model, int vocab_size) : seq(seq), d_model(d_model), vocab_size(vocab_size),
+                                                               token_ids(mx::zeros({1, 1}, mx::float32)),
                                                                embeddings(mx::zeros({vocab_size, d_model}, mx::float32)),
                                                                d_embeddings(mx::zeros({vocab_size, d_model}, mx::float32)),
                                                                positional_encodings(mx::zeros({seq, d_model}, mx::float32)) {
@@ -34,26 +35,24 @@ mx::array InputLayer::compute_positional_encodings(int seq, int d_model) {
     return mx::array(P.begin(), {seq, d_model}, mx::float32);
 }
 
-void InputLayer::forward(const mx::array& input) {
-
-}
-
-void InputLayer::forward(const vector<int>& input_token_ids) {
+void InputLayer::forward(const mx::array& input_token_ids) {
+    // input_token_ids has shape {num_sentences, max_sentence_length}
     token_ids = input_token_ids;
-    int num_tokens = input_token_ids.size();
-    // Gather the tokens' embeddings
-    mx::array indices = mx::array(input_token_ids.data(), {num_tokens}, mx::int32);
-    output = mx::take(embeddings, indices, 0);
-    // Add positional encodings
-    output = output + mx::slice(positional_encodings, {0, 0}, {num_tokens, d_model});
+    int num_sentences = input_token_ids.shape(0);
+    int max_sentence_length = input_token_ids.shape(1);
+    mx::array indices = mx::reshape(input_token_ids, {num_sentences * max_sentence_length});
+    output = mx::take(embeddings, indices, 0);  // output has shape {num_sentences * max_sentence_length, d_model}
+    output = mx::reshape(output, {num_sentences, max_sentence_length, d_model});  // output has shape {num_sentences, max_sentence_length, d_model}
+    output = output + mx::slice(positional_encodings, {0, 0}, {max_sentence_length, d_model});
 }
 
 void InputLayer::backward(const mx::array& d_output) {
-    mx::array indices = mx::array(token_ids.data(), {(int)token_ids.size()}, mx::int32);
-    
-    // Reshape to 3D because scatter_add requires updates.ndim = indices.ndim + a.ndim
-    mx::array updates = mx::reshape(d_output, {(int)token_ids.size(), 1, d_model});
-    d_embeddings = mx::scatter_add(d_embeddings, indices, updates, 0);
+    // d_output has shape {num_sentences, max_sentence_length, d_model}
+    int num_sentences = d_output.shape(0);
+    int max_sentence_length = d_output.shape(1);
+    mx::array indices = mx::reshape(token_ids, {num_sentences * max_sentence_length});
+    mx::array updates = mx::reshape(d_output, {num_sentences * max_sentence_length, 1, d_model});
+    d_embeddings = mx::scatter_add(mx::zeros({vocab_size, d_model}, mx::float32), indices, updates, 0);
 
     // Zero out PAD row
     d_embeddings = mx::slice_update(d_embeddings, mx::zeros({1, d_model}, mx::float32), {BPETokenizer::PAD_ID, 0}, {BPETokenizer::PAD_ID + 1, d_model});
@@ -61,14 +60,6 @@ void InputLayer::backward(const mx::array& d_output) {
 
 mx::array InputLayer::infer(const mx::array& layer_input) const {
     return mx::zeros({1, 1}, mx::float32);
-}
-
-mlx::core::array InputLayer::infer(const vector<int>& input_token_ids) const {
-    int num_tokens = input_token_ids.size();
-    mx::array indices = mx::array(input_token_ids.data(), {num_tokens}, mx::int32);
-    mx::array output_tmp = mx::take(embeddings, indices, 0);
-    output_tmp = output_tmp + mx::slice(positional_encodings, {0, 0}, {num_tokens, d_model});
-    return output_tmp;
 }
 
 const vector<TrainableParameter>& InputLayer::get_parameters() const {

@@ -7,11 +7,10 @@
 class InputLayer: public Layer {
     private:
         int seq, d_model, vocab_size;
+        mlx::core::array token_ids;
         mlx::core::array embeddings, d_embeddings;
         mlx::core::array positional_encodings;
         std::vector<TrainableParameter> params;
-        
-        std::vector<int> token_ids;
 
     public:
         InputLayer(int seq, int d_model, int vocab_size);
@@ -19,12 +18,8 @@ class InputLayer: public Layer {
         mlx::core::array compute_positional_encodings(int seq, int d_model);
 
         void forward(const mlx::core::array& input) override;
-        void forward(const std::vector<int>& token_ids);
-
         void backward(const mlx::core::array& d_output) override;
-
         mlx::core::array infer(const mlx::core::array& layer_input) const override;
-        mlx::core::array infer(const std::vector<int>& token_ids) const;
 
         const std::vector<TrainableParameter>& get_parameters() const override;
         const mlx::core::array& get_output() const override;

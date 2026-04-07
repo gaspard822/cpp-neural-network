@@ -14,7 +14,7 @@ class MultiHeadAttention : public Layer {
     private:
         AttentionMode mode;
         mlx::core::array X;
-        mlx::core::array encoder_output, d_encoder_output;
+        mlx::core::array encoder_output, d_encoder_output, padding_mask;
         mlx::core::array WQ, WK, WV, WO, d_WQ, d_WK, d_WV, d_WO;
         mlx::core::array Q, K, V;
         mlx::core::array softmaxJ, head;
@@ -35,6 +35,7 @@ class MultiHeadAttention : public Layer {
         mlx::core::array infer(const mlx::core::array& layer_input) const override;
 
         void set_encoder_output(const mlx::core::array& enc_out);
+        void set_padding_mask(const mlx::core::array& pad_mask);
 
         const std::vector<TrainableParameter>& get_parameters() const override;
         const mlx::core::array& get_output() const override;

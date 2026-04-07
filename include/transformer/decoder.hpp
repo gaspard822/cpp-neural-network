@@ -23,7 +23,7 @@ class Decoder {
     public:
         Decoder(int seq, int d_model, int h, int d_k, int d_v, int d_ff, ActivationFunction* activation);
 
-        void forward(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input);
+        void forward(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input, const mlx::core::array& encoder_padding_mask, const mlx::core::array& decoder_padding_mask);
         void backward(const mlx::core::array& d_output);
         mlx::core::array infer(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input);
         const mlx::core::array& get_output() const;

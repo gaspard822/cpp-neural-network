@@ -12,39 +12,36 @@ LayerNorm::LayerNorm(int seq, int d_model) : seq(seq), d_model(d_model), epsilon
                                              beta(mx::zeros({1, d_model}, mx::float32)),
                                              d_gamma(mx::zeros({1, d_model}, mx::float32)),
                                              d_beta(mx::zeros({1, d_model}, mx::float32)),
-                                             diff(mx::zeros({1, 1}, mx::float32)),
-                                             normalized_input(mx::zeros({1, 1}, mx::float32)) {
+                                             diff(mx::zeros({1, 1, 1}, mx::float32)),
+                                             normalized_input(mx::zeros({1, 1, 1}, mx::float32)) {
 
     params = {TrainableParameter(gamma, d_gamma), TrainableParameter(beta, d_beta)};
 }
 
 void LayerNorm::forward(const mx::array& input) {
-    // input: (num_tokens, d_model)
-    diff = input - mx::mean(input, 1, true);  // per-row average, keep the same dimensions
-    mx::array variance = mx::mean(mx::square(diff), 1, false);
-    inv_sqrt_var_plus_epsilon = mx::ones({variance.shape(0)}, mx::float32) / mx::sqrt(variance + epsilon);
-    normalized_input = diff * mx::reshape(inv_sqrt_var_plus_epsilon, {-1, 1});
+    // input: (num_sentences, max_sentence_size, d_model)
+    diff = input - mx::mean(input, 2, true);  // per-row average, keep the same dimensions
+    mx::array variance = mx::mean(mx::square(diff), 2, false);
+    inv_sqrt_var_plus_epsilon = mx::ones({variance.shape(0), variance.shape(1)}, mx::float32) / mx::sqrt(variance + epsilon);
+    normalized_input = diff * mx::reshape(inv_sqrt_var_plus_epsilon, {variance.shape(0), variance.shape(1), 1});
     output = normalized_input * gamma + beta;
 }
 
 void LayerNorm::backward(const mlx::core::array& d_output) {
-    d_gamma = d_gamma + mx::sum(d_output * normalized_input, 0);
-    d_beta = d_beta + mx::sum(d_output, 0);
+    int num_sentences = d_output.shape(0);
+    int max_sentence_size = d_output.shape(1);
+    d_gamma = mx::sum(mx::sum(d_output * normalized_input, 0), 0);
+    d_beta = mx::sum(mx::sum(d_output, 0), 0);
     mx::array d_normalized_input = d_output * gamma;
-
-    mx::array isv = mx::reshape(inv_sqrt_var_plus_epsilon, {-1, 1});
-    mx::array dot_dn_norm = mx::sum(d_normalized_input * normalized_input, 1, true);
-    mx::array sum_dn = mx::sum(d_normalized_input, 1, true);
+    mx::array isv = mx::reshape(inv_sqrt_var_plus_epsilon, {num_sentences, max_sentence_size, 1});
+    mx::array dot_dn_norm = mx::sum(d_normalized_input * normalized_input, 2, true);
+    mx::array sum_dn = mx::sum(d_normalized_input, 2, true);
     d_input = isv * (d_normalized_input - (1.0f / d_model) * (normalized_input * dot_dn_norm + sum_dn));
 }
 
 mx::array LayerNorm::infer(const mx::array& input) const {
     // input: (num_tokens, d_model)
-    mx::array diff_tmp = input - mx::mean(input, 1, true);  // per-row average, keep the same dimensions
-    mx::array variance_tmp = mx::mean(mx::square(diff_tmp), 1, false);
-    mx::array inv_sqrt_var_plus_epsilon_tmp = mx::ones({variance_tmp.shape(0)}, mx::float32) / mx::sqrt(variance_tmp + epsilon);
-    mx::array normalized_input_tmp = diff_tmp * mx::reshape(inv_sqrt_var_plus_epsilon_tmp, {-1, 1});
-    return normalized_input_tmp * gamma + beta;
+    return input;
 }
 
 const vector<TrainableParameter>& LayerNorm::get_parameters() const {

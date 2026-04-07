@@ -43,13 +43,12 @@ class TransformerNetwork : public Network {
         // Helper that initializes layers (called by both constructors)
         void init_layers();
 
-        const mlx::core::array& forward(const std::vector<int>& encoder_token_ids, const std::vector<int>& decoder_token_ids);
-        const mlx::core::array& backward(const std::vector<int>& y_true, const mlx::core::array& y_pred);
+        const mlx::core::array& forward(const mlx::core::array& encoder_token_ids, const mlx::core::array& decoder_token_ids,
+                                        const mlx::core::array& encoder_padding_mask, const mlx::core::array& decoder_padding_mask);
+        const mlx::core::array& backward(const mlx::core::array& y_true, const mlx::core::array& y_pred);
         void infer(const std::vector<std::vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const std::string& csv_path) const;
         void infer_live(BPETokenizer* tokenizer) const;
-        float compute_validation_loss(std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val);
-        void reset_gradients();
-        void normalize_gradients(int batch_size);
+        float compute_validation_loss(std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val, int batch_size);
         void train(
             std::vector<std::vector<int>>& encoder_tokens_train, std::vector<std::vector<int>>& decoder_tokens_train,
             std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val,

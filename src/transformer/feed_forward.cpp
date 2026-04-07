@@ -8,7 +8,7 @@ namespace mx = mlx::core;
 
 FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, int d_ff) :
                         activation(activation), seq(seq), d_model(d_model), d_ff(d_ff),
-                        X(mx::zeros({1, 1}, mx::float32)), U(mx::zeros({1, 1}, mx::float32)), H(mx::zeros({1, 1}, mx::float32)),
+                        X(mx::zeros({1, 1, 1}, mx::float32)), U(mx::zeros({1, 1, 1}, mx::float32)), H(mx::zeros({1, 1, 1}, mx::float32)),
                         W1(mx::zeros({d_model, d_ff}, mx::float32)), W2(mx::zeros({d_ff, d_model}, mx::float32)),
                         d_W1(mx::zeros({d_model, d_ff}, mx::float32)), d_W2(mx::zeros({d_ff, d_model}, mx::float32)),
                         b1(mx::zeros({1, d_ff}, mx::float32)), b2(mx::zeros({1, d_model}, mx::float32)),
@@ -36,7 +36,7 @@ FeedForward::FeedForward(ActivationFunction* activation, int seq, int d_model, i
 }
 
 void FeedForward::forward(const mx::array& input) {
-    // input : (num_tokens, d_model)
+    // input : (num_sentences, max_sentence_length, d_model)
     X = input;
     U = mx::matmul(input, W1) + b1;
     H = activation->apply(U);
@@ -44,18 +44,16 @@ void FeedForward::forward(const mx::array& input) {
 }
 
 void FeedForward::backward(const mx::array& d_output) {
-    d_W2 = d_W2 + mx::matmul(mx::transpose(H), d_output);
-    d_b2 = d_b2 + mx::sum(d_output, 0, true);
+    d_W2 = mx::sum(mx::matmul(mx::transpose(H, {0, 2, 1}), d_output), 0);
+    d_b2 = mx::sum(mx::sum(d_output, 0), 0, true);
     mx::array d_U = mx::matmul(d_output, mx::transpose(W2)) * activation->derivative(U);
-    d_W1 = d_W1 + mx::matmul(mx::transpose(X), d_U);
-    d_b1 = d_b1 + mx::sum(d_U, 0, true);
+    d_W1 = mx::sum(mx::matmul(mx::transpose(X, {0, 2, 1}), d_U), 0);
+    d_b1 = mx::sum(mx::sum(d_U, 0), 0, true);
     d_input = mx::matmul(d_U, mx::transpose(W1));
 }
 
 mx::array FeedForward::infer(const mx::array& input) const {
-    mx::array U_tmp = mx::matmul(input, W1) + b1;
-    mx::array H_tmp = activation->apply(U_tmp);
-    return mx::matmul(H_tmp, W2) + b2;
+    return input;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {

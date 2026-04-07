@@ -8,7 +8,7 @@ namespace mx = mlx::core;
 
 MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int d_v, AttentionMode mode) :
         seq(seq), d_model(d_model), h(h), d_k(d_k), d_v(d_v), mode(mode),
-        X(mx::zeros({1, 1}, mx::float32)), encoder_output(mx::zeros({1, 1}, mx::float32)), d_encoder_output(mx::zeros({1, 1}, mx::float32)),
+        X(mx::zeros({1, 1}, mx::float32)), encoder_output(mx::zeros({1, 1}, mx::float32)), d_encoder_output(mx::zeros({1, 1}, mx::float32)), padding_mask(mx::zeros({1}, mx::float32)),
         WQ(mx::zeros({d_model, h*d_k}, mx::float32)), WK(mx::zeros({d_model, h*d_k}, mx::float32)), WV(mx::zeros({d_model, h*d_v}, mx::float32)), WO(mx::zeros({h*d_v, d_model}, mx::float32)),
         d_WQ(mx::zeros({d_model, h*d_k}, mx::float32)), d_WK(mx::zeros({d_model, h*d_k}, mx::float32)), d_WV(mx::zeros({d_model, h*d_v}, mx::float32)), d_WO(mx::zeros({h*d_v, d_model}, mx::float32)),
         Q(mx::zeros({1, 1}, mx::float32)), K(mx::zeros({1, 1}, mx::float32)), V(mx::zeros({1, 1}, mx::float32)),
@@ -42,64 +42,83 @@ MultiHeadAttention::MultiHeadAttention(int seq, int d_model, int h, int d_k, int
 }
 
 void MultiHeadAttention::forward(const mx::array& input) {
-    int num_q_tokens = input.shape(0);
-    int num_kv_tokens = is_cross_attention() ? encoder_output.shape(0) : input.shape(0);
-    X = input;
-    // Compute Q=input*WQ and reshape it into {h, num_q_tokens, d_k}
-    Q = mx::transpose(mx::reshape(mx::matmul(input, WQ), {num_q_tokens, h, d_k}), {1, 0, 2});
+    // input: {num_sentences, num_q_tokens, d_model}
+    int num_sentences = input.shape(0);
+    int num_q_tokens = input.shape(1);
     const mx::array& kv_input = is_cross_attention() ? encoder_output : input;
-    // Compute K=input*WK and reshape it into {h, num_kv_tokens, d_k}
-    K = mx::transpose(mx::reshape(mx::matmul(kv_input, WK), {num_kv_tokens, h, d_k}), {1, 0, 2});
-    // Compute V=input*WV and reshape it into {h, num_kv_tokens, d_v}
-    V = mx::transpose(mx::reshape(mx::matmul(kv_input, WV), {num_kv_tokens, h, d_v}), {1, 0, 2});
+    int num_kv_tokens = kv_input.shape(1);
+    X = input;
 
-    mx::array scores = mx::matmul(Q, mx::transpose(K, {0, 2, 1})) / (sqrt((float)d_k));
+    // Project Q, K, V from {num_sentences, num_tokens, d_model} to {num_sentences, h, num_tokens, d_k/d_v}
+    Q = mx::transpose(mx::reshape(mx::matmul(input, WQ), {num_sentences, num_q_tokens, h, d_k}), {0, 2, 1, 3});
+    K = mx::transpose(mx::reshape(mx::matmul(kv_input, WK), {num_sentences, num_kv_tokens, h, d_k}), {0, 2, 1, 3});
+    V = mx::transpose(mx::reshape(mx::matmul(kv_input, WV), {num_sentences, num_kv_tokens, h, d_v}), {0, 2, 1, 3});
+
+    // Scores: {num_sentences, h, num_q_tokens, d_k} x {num_sentences, h, d_k, num_kv_tokens} -> {num_sentences, h, num_q_tokens, num_kv_tokens}
+    mx::array scores = mx::matmul(Q, mx::transpose(K, {0, 1, 3, 2})) / sqrt((float)d_k);
+
+    // {1, 1, num_q_tokens, num_kv_tokens} broadcasts over num_sentences and h
     if (is_masked_attention()) {
-        scores = scores + mx::reshape(mx::slice(forward_mask, {0, 0}, {num_q_tokens, num_kv_tokens}), {1, num_q_tokens, num_kv_tokens});
+        scores = scores + mx::reshape(mx::slice(forward_mask, {0, 0}, {num_q_tokens, num_kv_tokens}), {1, 1, num_q_tokens, num_kv_tokens});
     }
 
-    softmaxJ = mx::softmax(scores, -1);  // has shape {h, num_q_tokens, num_kv_tokens}
-    head = mx::matmul(softmaxJ, V);  // has shape {h, num_q_tokens, d_v}
-    mx::array concat_heads = mx::reshape(mx::transpose(head, {1, 0, 2}), {num_q_tokens, h * d_v});  // has shape {num_q_tokens, h*d_v}
+    // {num_sentences, 1, 1, num_kv_tokens} broadcasts over h and num_q_tokens
+    scores = scores + padding_mask;
+
+    softmaxJ = mx::softmax(scores, -1);  // {num_sentences, h, num_q_tokens, num_kv_tokens}
+    head = mx::matmul(softmaxJ, V);  // {num_sentences, h, num_q_tokens, d_v}
+
+    // Concat heads: {num_sentences, h, num_q_tokens, d_v} -> {num_sentences, num_q_tokens, h*d_v}
+    mx::array concat_heads = mx::reshape(mx::transpose(head, {0, 2, 1, 3}), {num_sentences, num_q_tokens, h * d_v});
+
+    // Output projection: {num_sentences, num_q_tokens, h*d_v} x {h*d_v, d_model} -> {num_sentences, num_q_tokens, d_model}
     output = mx::matmul(concat_heads, WO);
 }
 
 void MultiHeadAttention::backward(const mx::array& d_output) {
-    int num_q_tokens = X.shape(0);
-    int num_kv_tokens = is_cross_attention() ? encoder_output.shape(0) : X.shape(0);
-    d_input = mx::zeros({num_q_tokens, d_model}, mx::float32);
-    if (is_cross_attention()) d_encoder_output = mx::zeros({num_kv_tokens, d_model}, mx::float32);
+    // d_output: {num_sentences, num_q_tokens, d_model}
+    int num_sentences = X.shape(0);
+    int num_q_tokens = X.shape(1);
+    int num_kv_tokens = is_cross_attention() ? encoder_output.shape(1) : X.shape(1);
 
-    mx::array d_head = mx::matmul(d_output, mx::transpose(WO));  // has shape {num_q_tokens, h*d_v}
-    d_head = mx::transpose(mx::reshape(d_head, {num_q_tokens, h, d_v}), {1, 0, 2}); // has shape {h, num_q_tokens, d_v}
+    // output = matmul(concat_heads, WO)
+    mx::array d_head = mx::matmul(d_output, mx::transpose(WO));  // {num_sentences, num_q_tokens, h*d_v}
+    d_head = mx::transpose(mx::reshape(d_head, {num_sentences, num_q_tokens, h, d_v}), {0, 2, 1, 3});  // {num_sentences, h, num_q_tokens, d_v}
 
-    mx::array concat_heads = mx::reshape(mx::transpose(head, {0, 2, 1}), {h*d_v, num_q_tokens});  // has shape {h*d_v, num_q_tokens}
-    d_WO = d_WO + mx::matmul(concat_heads, d_output);  // has shape {h*d_v, d_model}
+    mx::array concat_heads = mx::reshape(mx::transpose(head, {0, 2, 1, 3}), {num_sentences, num_q_tokens, h * d_v});
+    d_WO = mx::sum(mx::matmul(mx::transpose(concat_heads, {0, 2, 1}), d_output), 0);  // {h*d_v, d_model}
 
-    mx::array d_softmaxJ = mx::matmul(d_head, mx::transpose(V, {0, 2, 1}));  // has shape {h, num_q_tokens, num_kv_tokens}
-    mx::array row_dot = mx::sum(d_softmaxJ * softmaxJ, -1, true);  // has shape {h, num_q_tokens, num_kv_tokens}
-    mx::array d_scores = softmaxJ * (d_softmaxJ - row_dot);  // has shape {h, num_q_tokens, num_kv_tokens}
+    // head = matmul(softmaxJ, V)
+    mx::array d_softmaxJ = mx::matmul(d_head, mx::transpose(V, {0, 1, 3, 2}));  // {num_sentences, h, num_q_tokens, num_kv_tokens}
+    mx::array d_V = mx::matmul(mx::transpose(softmaxJ, {0, 1, 3, 2}), d_head);  // {num_sentences, h, num_kv_tokens, d_v}
+
+    // softmax backward
+    mx::array row_dot = mx::sum(d_softmaxJ * softmaxJ, -1, true);  // {num_sentences, h, num_q_tokens, 1}
+    mx::array d_scores = softmaxJ * (d_softmaxJ - row_dot);  // {num_sentences, h, num_q_tokens, num_kv_tokens}
     if (is_masked_attention()) {
-        d_scores = d_scores * mx::reshape(mx::slice(backward_mask, {0, 0}, {num_q_tokens, num_kv_tokens}), {1, num_q_tokens, num_kv_tokens});
+        d_scores = d_scores * mx::reshape(mx::slice(backward_mask, {0, 0}, {num_q_tokens, num_kv_tokens}), {1, 1, num_q_tokens, num_kv_tokens});
     }
-    mx::array d_V = mx::matmul(mx::transpose(softmaxJ, {0, 2, 1}), d_head);  // has shape {h, num_kv_tokens, d_v}
-    mx::array d_K = mx::matmul(mx::transpose(d_scores, {0, 2, 1}), Q) / (sqrt((float)d_k));  // has shape {h, num_kv_tokens, d_k}
-    mx::array d_Q = mx::matmul(d_scores, K) / (sqrt((float)d_k));  // has shape {h, num_q_tokens, d_k}
 
-    mx::array d_Q_flat = mx::reshape(mx::transpose(d_Q, {1, 0, 2}), {num_q_tokens, h * d_k});
-    mx::array d_K_flat = mx::reshape(mx::transpose(d_K, {1, 0, 2}), {num_kv_tokens, h * d_k});
-    mx::array d_V_flat = mx::reshape(mx::transpose(d_V, {1, 0, 2}), {num_kv_tokens, h * d_v});
+    // scores = matmul(Q, K^T) / sqrt(d_k)
+    mx::array d_Q = mx::matmul(d_scores, K) / sqrt((float)d_k);  // {num_sentences, h, num_q_tokens, d_k}
+    mx::array d_K = mx::matmul(mx::transpose(d_scores, {0, 1, 3, 2}), Q) / sqrt((float)d_k);  // {num_sentences, h, num_kv_tokens, d_k}
 
-    d_WQ = d_WQ + mx::matmul(mx::transpose(X), d_Q_flat);  // has shape {d_model, h*d_k}
+    // flatten back to 3D
+    mx::array d_Q_flat = mx::reshape(mx::transpose(d_Q, {0, 2, 1, 3}), {num_sentences, num_q_tokens, h * d_k});
+    mx::array d_K_flat = mx::reshape(mx::transpose(d_K, {0, 2, 1, 3}), {num_sentences, num_kv_tokens, h * d_k});
+    mx::array d_V_flat = mx::reshape(mx::transpose(d_V, {0, 2, 1, 3}), {num_sentences, num_kv_tokens, h * d_v});
+
+    // weight gradients (sum over batch)
+    d_WQ = mx::sum(mx::matmul(mx::transpose(X, {0, 2, 1}), d_Q_flat), 0);  // {d_model, h*d_k}
     if (!is_cross_attention()) {
-        d_WK = d_WK + mx::matmul(mx::transpose(X), d_K_flat);  // has shape {d_model, h*d_k}
-        d_WV = d_WV + mx::matmul(mx::transpose(X), d_V_flat);  // has shape {d_model, h*d_v}
-        d_input = mx::matmul(d_Q_flat, mx::transpose(WQ)) + mx::matmul(d_K_flat, mx::transpose(WK)) + mx::matmul(d_V_flat, mx::transpose(WV));  // has shape {num_q_tokens, d_model}
+        d_WK = mx::sum(mx::matmul(mx::transpose(X, {0, 2, 1}), d_K_flat), 0);
+        d_WV = mx::sum(mx::matmul(mx::transpose(X, {0, 2, 1}), d_V_flat), 0);
+        d_input = mx::matmul(d_Q_flat, mx::transpose(WQ)) + mx::matmul(d_K_flat, mx::transpose(WK)) + mx::matmul(d_V_flat, mx::transpose(WV));  // {num_sentences, num_q_tokens, d_model}
     } else {
-        d_WK = d_WK + mx::matmul(mx::transpose(encoder_output), d_K_flat);  // has shape {d_model, h*d_k}
-        d_WV = d_WV + mx::matmul(mx::transpose(encoder_output), d_V_flat);  // has shape {d_model, h*d_v}
-        d_input = mx::matmul(d_Q_flat, mx::transpose(WQ));  // has shape {num_q_tokens, d_model}
-        d_encoder_output = mx::matmul(d_K_flat, mx::transpose(WK)) + mx::matmul(d_V_flat, mx::transpose(WV));  // has shape {num_kv_tokens, d_model}
+        d_WK = mx::sum(mx::matmul(mx::transpose(encoder_output, {0, 2, 1}), d_K_flat), 0);
+        d_WV = mx::sum(mx::matmul(mx::transpose(encoder_output, {0, 2, 1}), d_V_flat), 0);
+        d_input = mx::matmul(d_Q_flat, mx::transpose(WQ));  // {num_sentences, num_q_tokens, d_model}
+        d_encoder_output = mx::matmul(d_K_flat, mx::transpose(WK)) + mx::matmul(d_V_flat, mx::transpose(WV));  // {num_sentences, num_kv_tokens, d_model}
     }
 }
 
@@ -109,6 +128,10 @@ mx::array MultiHeadAttention::infer(const mx::array& input) const {
 
 void MultiHeadAttention::set_encoder_output(const mx::array& enc_out) {
     encoder_output = enc_out;
+}
+
+void MultiHeadAttention::set_padding_mask(const mx::array& pad_mask) {
+    padding_mask = pad_mask;
 }
 
 const vector<TrainableParameter>& MultiHeadAttention::get_parameters() const {

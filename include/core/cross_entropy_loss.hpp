@@ -41,6 +41,24 @@ class CrossEntropy : public LossFunction {
         mlx::core::array derivative(const std::vector<int>& y_true, const mlx::core::array& y_pred) const;
 
         /**
+         * Computes the average cross-entropy loss over all non-pad tokens in a batch.
+         * @param y_true_ids {batch_size, num_tokens} int32 target token IDs
+         * @param y_pred {batch_size, num_tokens, vocab_size} float32 logits
+         * @param pad_id Token ID to ignore in the loss
+         * @return float Scalar cross-entropy loss
+         */
+        float compute(const mlx::core::array& y_true_ids, const mlx::core::array& y_pred, int pad_id) const;
+
+        /**
+         * Computes the gradient of the cross-entropy loss for a batch, with zero gradients at pad positions.
+         * @param y_true_ids {batch_size, num_tokens} int32 target token IDs
+         * @param y_pred {batch_size, num_tokens, vocab_size} float32 logits
+         * @param pad_id Token ID to ignore
+         * @return mlx::core::array {batch_size, num_tokens, vocab_size} gradient
+         */
+        mlx::core::array derivative(const mlx::core::array& y_true_ids, const mlx::core::array& y_pred, int pad_id) const;
+
+        /**
          * Returns the name of the loss function ("cross-entropy").
          * @return string Loss function name
          */

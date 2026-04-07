@@ -10,22 +10,22 @@ using namespace std;
 
 struct TrainingConfig {
     // Model architecture
-    int num_encoder_layers = 1;
-    int num_decoder_layers = 1;
+    int num_encoder_layers = 4;
+    int num_decoder_layers = 4;
     int seq = 256;
-    int d_model = 256;
-    int h = 4;
+    int d_model = 512;
+    int h = 8;
     int vocab_size = 10000;
 
     // Training hyperparameters
     int num_epochs = 1;
     int batch_size = 256;
-    float learning_rate = 0.0002;
+    float learning_rate = 0.0003;
     float beta1 = 0.9;
     float beta2 = 0.999;
 
     // Dataset parameters
-    int N = 100000;  // Number of sentence pairs to use (max 183,251 available)
+    int N = 180000;  // Number of sentence pairs to use (max 183,251 available)
     float train_size = 0.8;
     float val_size = 0.1;
 
@@ -33,8 +33,8 @@ struct TrainingConfig {
     string en_data_path = "../translation/news-commentary-v9.fr-en.en";
     string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
     string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
-    string model_path = "../transformer_models/saved_model_tmp.txt";
-    string output_path = "../translation/output_epoch_tmp.csv";
+    string model_path = "../transformer_models/saved_model.txt";
+    string output_path = "../translation/output.csv";
     string tokenized_cache_path = "../transformer_models/tokenized_cache.bin";
 };
 
@@ -183,7 +183,7 @@ pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_par
         }
 
         // Skip if too short
-        if (en_encoding.size() < 5 || fr_encoding.size() < 5) {
+        if (en_encoding.size() < 3 || fr_encoding.size() < 3) {
             skipped_too_short++;
             continue;
         }
