@@ -25,7 +25,7 @@ class Decoder {
 
         void forward(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input, const mlx::core::array& encoder_padding_mask, const mlx::core::array& decoder_padding_mask);
         void backward(const mlx::core::array& d_output);
-        mlx::core::array infer(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input);
+        mlx::core::array infer(const mlx::core::array& encoder_input, const mlx::core::array& decoder_input, const mlx::core::array& encoder_padding_mask, const mlx::core::array& padding_mask);
         const mlx::core::array& get_output() const;
         const mlx::core::array& get_d_input() const;
         const mlx::core::array& get_d_encoder_input() const;

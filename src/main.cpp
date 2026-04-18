@@ -15,8 +15,10 @@ int main() {
     // infer_mnist();
 
     TrainingConfig cfg;
+    // train_and_save_tokenizer(cfg);
     init_transformer_model(cfg);
-    // train_transformer_model(cfg, true, false);
+    train_transformer_model(cfg, true);
+    // infer_live_translation(cfg);
 
     return 0;
 }

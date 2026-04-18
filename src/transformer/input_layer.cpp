@@ -59,7 +59,12 @@ void InputLayer::backward(const mx::array& d_output) {
 }
 
 mx::array InputLayer::infer(const mx::array& layer_input) const {
-    return mx::zeros({1, 1}, mx::float32);
+    int num_sentences = layer_input.shape(0);
+    int max_sentence_length = layer_input.shape(1);
+    mx::array indices = mx::reshape(layer_input, {num_sentences * max_sentence_length});
+    mx::array out = mx::take(embeddings, indices, 0);
+    out = mx::reshape(out, {num_sentences, max_sentence_length, d_model});
+    return out + mx::slice(positional_encodings, {0, 0}, {max_sentence_length, d_model});
 }
 
 const vector<TrainableParameter>& InputLayer::get_parameters() const {

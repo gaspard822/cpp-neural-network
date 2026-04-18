@@ -103,6 +103,23 @@ pair<mx::array, mx::array> pad_and_measure(const vector<vector<int>>& token_ids,
     return {mx::array(flat_padded.data(), {num_sentences, seq}, mx::int32), mx::array(lengths.data(), {num_sentences}, mx::int32)};
 }
 
+vector<vector<int>> unpad_tokens(const mx::array& token_ids, int pad_id) {
+    mx::eval(token_ids);
+    int num_sentences = token_ids.shape(0);
+    int sentence_length = token_ids.shape(1);
+    const int* data = token_ids.data<int>();
+
+    vector<vector<int>> result(num_sentences);
+    for (int i = 0; i < num_sentences; i++) {
+        for (int j = 0; j < sentence_length; j++) {
+            int tok = data[i * sentence_length + j];
+            if (tok == pad_id) break;
+            result[i].push_back(tok);
+        }
+    }
+    return result;
+}
+
 const mx::array& TransformerNetwork::forward(const mx::array& encoder_token_ids, const mx::array& decoder_token_ids,
                                              const mx::array& encoder_padding_mask, const mx::array& decoder_padding_mask) {
 
@@ -151,76 +168,125 @@ const mx::array& TransformerNetwork::backward(const mx::array& y_true, const mx:
     return *encoder_d_input;
 }
 
-void TransformerNetwork::infer(const vector<vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const string& csv_path) const {
-    /*
-    ofstream file(csv_path);
-    if (!file.is_open()) throw runtime_error("Could not open the file");
+mx::array TransformerNetwork::infer(const mx::array& encoder_token_ids, const mx::array& encoder_padding_mask) const {
+    int num_sentences = encoder_token_ids.shape(0);
 
-    int N = encoder_token_ids.size();
-    for (int i = 0; i < N; i++) {
-        mx::array encoder_output = encoder_input_layer->infer(encoder_token_ids[i]);
-        // Forward that embedding into the encoders
-        for (Encoder* encoder: encoders) {
-            encoder_output = encoder->infer(encoder_output);
-        }
-    
-        int last_token = BPETokenizer::SOS_ID;
-        vector<int> predicted_tokens = {last_token};
-        while ((last_token != BPETokenizer::EOS_ID) && (predicted_tokens.size() < seq)) {
-            mx::array decoder_output = decoder_input_layer->infer(predicted_tokens);
-            // Forward that embedding into the decoders
-            for (Decoder* decoder: decoders) {
-                decoder_output = decoder->infer(encoder_output, decoder_output);
-            }
-    
-            mx::array linear_layer_output = linear_layer->infer(decoder_output);
-            int last_row = linear_layer_output.shape(0) - 1;
-            mx::array last_row_probs = mx::slice(linear_layer_output, {last_row, 0}, {last_row + 1, linear_layer_output.shape(1)});
-            last_token = mx::argmax(last_row_probs, 1).item<int>();
-            predicted_tokens.push_back(last_token);
-        }
-        string input_sentence = tokenizer->decode(encoder_token_ids[i]);
-        string predicted_sentence = tokenizer->decode(predicted_tokens);
-        file << "\"" << input_sentence << "\"," << "\"" << predicted_sentence << "\"\n";
+    // Encode source sentences once
+    mx::array encoder_output = encoder_input_layer->infer(encoder_token_ids);
+    for (Encoder* encoder : encoders) {
+        encoder_output = encoder->infer(encoder_output, encoder_padding_mask);
     }
-    file.close();
-    */
+
+    // Start decoder with SOS for each sentence: {num_sentences, 1}
+    vector<int> init(num_sentences, BPETokenizer::SOS_ID);
+    mx::array decoder_tokens = mx::array(init.data(), {num_sentences, 1}, mx::int32);
+
+    vector<bool> done(num_sentences, false);
+    int num_done = 0;
+
+    while (num_done < num_sentences && decoder_tokens.shape(1) < seq) {
+        int sentence_length = decoder_tokens.shape(1);
+        mx::array dec_pad_mask = mx::zeros({num_sentences, 1, 1, sentence_length}, mx::float32);
+
+        mx::array decoder_output = decoder_input_layer->infer(decoder_tokens);
+        for (Decoder* decoder : decoders) {
+            decoder_output = decoder->infer(encoder_output, decoder_output, encoder_padding_mask, dec_pad_mask);
+        }
+        mx::array logits = linear_layer->infer(decoder_output);  // {num_sentences, sentence_length, vocab_size}
+
+        // Take last position's logits and argmax
+        mx::array last_logits = mx::squeeze(mx::slice(logits, {0, sentence_length - 1, 0}, {num_sentences, sentence_length, logits.shape(2)}), 1);
+        mx::array next_tokens = mx::argmax(last_logits, 1);
+        mx::eval(next_tokens);
+        const int* next_data = next_tokens.data<int>();
+
+        vector<int> next_vec(num_sentences);
+        for (int i = 0; i < num_sentences; i++) {
+            if (done[i]) {
+                next_vec[i] = BPETokenizer::PAD_ID;
+            } else {
+                next_vec[i] = next_data[i];
+                if (next_data[i] == BPETokenizer::EOS_ID) {
+                    done[i] = true;
+                    num_done++;
+                }
+            }
+        }
+        mx::array next_col = mx::array(next_vec.data(), {num_sentences, 1}, mx::int32);
+        decoder_tokens = mx::concatenate({decoder_tokens, next_col}, 1);
+    }
+
+    return decoder_tokens;  // {num_sentences, max_sentence_length}
+}
+
+vector<vector<int>> TransformerNetwork::infer(const vector<vector<int>>& encoder_tokens) const {
+    int N = encoder_tokens.size();
+    auto [encoder_token_ids, enc_lengths] = pad_and_measure(encoder_tokens, seq, BPETokenizer::PAD_ID);
+    const mx::array mx_indices = mx::arange(N, mx::int32);
+
+    vector<vector<int>> all_results;
+    all_results.reserve(N);
+
+    // We infer in batches of 1024 to not overload the memory
+    for (int start = 0; start < N; start += 1024) {
+        int end = min(start + 1024, N);
+        int current_batch_size = end - start;
+        const mx::array current_batch_indices = mx::slice(mx_indices, {start}, {end});
+
+        // take only the sentences corresponding to the indices of the current batch
+        mx::array enc_tokens = mx::take(encoder_token_ids, current_batch_indices, 0);
+
+        // compute the max sentence lengths
+        mx::array encoder_max_sentence_length = mx::max(mx::take(enc_lengths, current_batch_indices));
+        int enc_max = encoder_max_sentence_length.item<int>();
+
+        // cut off the tokens beyond the max sentence length
+        enc_tokens = mx::slice(enc_tokens, {0, 0}, {current_batch_size, enc_max});
+
+        // create padding masks with shape {current_batch_size, 1, 1, max_length}
+        mx::array enc_pad = mx::equal(enc_tokens, mx::array(BPETokenizer::PAD_ID));
+        mx::array encoder_padding_mask = mx::reshape(mx::where(enc_pad, mx::array(-1e15f), mx::array(0.0f)), {current_batch_size, 1, 1, enc_max});
+
+        mx::array batch_result = infer(enc_tokens, encoder_padding_mask);
+        vector<vector<int>> batch_tokens = unpad_tokens(batch_result, BPETokenizer::PAD_ID);
+        all_results.insert(all_results.end(), batch_tokens.begin(), batch_tokens.end());
+    }
+
+    return all_results;
 }
 
 void TransformerNetwork::infer_live(BPETokenizer* tokenizer) const {
-    /*
-    cout << "Type a sentence in English and press Enter. Ctrl+C to quit." << endl;
+    cout << "Type a sentence and press Enter. Ctrl+C to quit." << endl;
     string line;
     while (true) {
         cout << "\n> ";
         if (!getline(cin, line)) break;
         if (line.empty()) continue;
 
-        vector<int> encoder_token_ids = tokenizer->encode(line, true, true);
+        vector<int> tokens = tokenizer->encode(line, true, true);
 
-        mx::array encoder_output = encoder_input_layer->infer(encoder_token_ids);
-        for (Encoder* encoder : encoders) {
-            encoder_output = encoder->infer(encoder_output);
+        // Wrap as batch of 1
+        int len = min((int)tokens.size(), seq);
+        mx::array enc_tokens = mx::array(tokens.data(), {1, len}, mx::int32);
+
+        mx::array enc_pad = mx::equal(enc_tokens, mx::array(BPETokenizer::PAD_ID));
+        mx::array encoder_padding_mask = mx::reshape(mx::where(enc_pad, mx::array(-1e15f), mx::array(0.0f)), {1, 1, 1, len});
+
+        mx::array result = infer(enc_tokens, encoder_padding_mask);  // {1, output_length}
+
+        // Extract the single sentence (strip SOS, stop at EOS)
+        mx::eval(result);
+        int output_len = result.shape(1);
+        const int* data = result.data<int>();
+        vector<int> output_tokens;
+        for (int t = 0; t < output_len; t++) {
+            int tok = data[t];
+            if (tok == BPETokenizer::PAD_ID || tok == BPETokenizer::EOS_ID) break;
+            if (tok != BPETokenizer::SOS_ID) output_tokens.push_back(tok);
         }
 
-        int last_token = BPETokenizer::SOS_ID;
-        vector<int> predicted_tokens = {last_token};
-        while (last_token != BPETokenizer::EOS_ID && predicted_tokens.size() < seq) {
-            mx::array decoder_output = decoder_input_layer->infer(predicted_tokens);
-            for (Decoder* decoder : decoders) {
-                decoder_output = decoder->infer(encoder_output, decoder_output);
-            }
-            mx::array linear_layer_output = linear_layer->infer(decoder_output);
-            int last_row = linear_layer_output.shape(0) - 1;
-            mx::array last_row_probs = mx::slice(linear_layer_output, {last_row, 0}, {last_row + 1, linear_layer_output.shape(1)});
-            last_token = mx::argmax(last_row_probs, 1).item<int>();
-            predicted_tokens.push_back(last_token);
-        }
-
-        string predicted_sentence = tokenizer->decode(predicted_tokens);
-        cout << predicted_sentence << endl;
+        cout << tokenizer->decode(output_tokens) << endl;
     }
-    */
 }
 
 float TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_tokens_val, vector<vector<int>>& decoder_tokens_val, int batch_size) {
@@ -236,7 +302,7 @@ float TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_t
 
     for (int start = 0; start < N; start += batch_size) {
         int end = min(start + batch_size, N);
-        int bs = end - start;
+        int current_batch_size = end - start;
 
         mx::array enc_batch = mx::slice(enc_tokens, {start, 0}, {end, enc_tokens.shape(1)});
         mx::array dec_input_batch = mx::slice(dec_input_tokens, {start, 0}, {end, dec_input_tokens.shape(1)});
@@ -244,10 +310,10 @@ float TransformerNetwork::compute_validation_loss(vector<vector<int>>& encoder_t
 
         mx::array enc_pad = mx::reshape(
             mx::where(mx::equal(enc_batch, mx::array(BPETokenizer::PAD_ID)), mx::array(-1e15f), mx::array(0.0f)),
-            {bs, 1, 1, enc_batch.shape(1)});
+            {current_batch_size, 1, 1, enc_batch.shape(1)});
         mx::array dec_pad = mx::reshape(
             mx::where(mx::equal(dec_input_batch, mx::array(BPETokenizer::PAD_ID)), mx::array(-1e15f), mx::array(0.0f)),
-            {bs, 1, 1, dec_input_batch.shape(1)});
+            {current_batch_size, 1, 1, dec_input_batch.shape(1)});
 
         mx::array y_pred = forward(enc_batch, dec_input_batch, enc_pad, dec_pad);
         total_loss += cross_entropy_loss->compute(dec_target_batch, y_pred, BPETokenizer::PAD_ID);
@@ -286,6 +352,7 @@ void TransformerNetwork::train(
         chrono::time_point<chrono::high_resolution_clock> start_timer, end_timer;
         start_timer = chrono::high_resolution_clock::now();
         for (int start = 0; start < N; start += batch_size) {
+            if (((int)(start / batch_size) % 50) == 0) cout << "batch " << (int)(start/batch_size) << endl;
             int end = min(start + batch_size, N);
             int current_batch_size = end - start;
             const mx::array current_batch_indices = mx::slice(mx_indices, {start}, {end});

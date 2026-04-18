@@ -123,7 +123,52 @@ void MultiHeadAttention::backward(const mx::array& d_output) {
 }
 
 mx::array MultiHeadAttention::infer(const mx::array& input) const {
-    return input;
+    // Fallback: self-attention with no padding mask
+    return infer(input, mx::zeros({1, 1, 1, 1}, mx::float32));
+}
+
+mx::array MultiHeadAttention::infer(const mx::array& input, const mx::array& padding_mask) const {
+    // Self-attention (ENCODER_SELF or DECODER_MASKED_SELF)
+    int num_sentences = input.shape(0);
+    int num_tokens = input.shape(1);
+
+    mx::array q = mx::transpose(mx::reshape(mx::matmul(input, WQ), {num_sentences, num_tokens, h, d_k}), {0, 2, 1, 3});
+    mx::array k = mx::transpose(mx::reshape(mx::matmul(input, WK), {num_sentences, num_tokens, h, d_k}), {0, 2, 1, 3});
+    mx::array v = mx::transpose(mx::reshape(mx::matmul(input, WV), {num_sentences, num_tokens, h, d_v}), {0, 2, 1, 3});
+
+    mx::array scores = mx::matmul(q, mx::transpose(k, {0, 1, 3, 2})) / sqrt((float)d_k);
+
+    if (is_masked_attention()) {
+        scores = scores + mx::reshape(mx::slice(forward_mask, {0, 0}, {num_tokens, num_tokens}), {1, 1, num_tokens, num_tokens});
+    }
+
+    scores = scores + padding_mask;
+
+    mx::array attn = mx::softmax(scores, -1);
+    mx::array h_out = mx::matmul(attn, v);
+
+    mx::array concat = mx::reshape(mx::transpose(h_out, {0, 2, 1, 3}), {num_sentences, num_tokens, h * d_v});
+    return mx::matmul(concat, WO);
+}
+
+mx::array MultiHeadAttention::infer(const mx::array& input, const mx::array& encoder_out, const mx::array& encoder_padding_mask) const {
+    // Cross-attention (DECODER_CROSS): Q from input, K/V from encoder_out
+    int num_sentences = input.shape(0);
+    int num_q_tokens = input.shape(1);
+    int num_kv_tokens = encoder_out.shape(1);
+
+    mx::array q = mx::transpose(mx::reshape(mx::matmul(input, WQ), {num_sentences, num_q_tokens, h, d_k}), {0, 2, 1, 3});
+    mx::array k = mx::transpose(mx::reshape(mx::matmul(encoder_out, WK), {num_sentences, num_kv_tokens, h, d_k}), {0, 2, 1, 3});
+    mx::array v = mx::transpose(mx::reshape(mx::matmul(encoder_out, WV), {num_sentences, num_kv_tokens, h, d_v}), {0, 2, 1, 3});
+
+    mx::array scores = mx::matmul(q, mx::transpose(k, {0, 1, 3, 2})) / sqrt((float)d_k);
+    scores = scores + encoder_padding_mask;
+
+    mx::array attn = mx::softmax(scores, -1);
+    mx::array h_out = mx::matmul(attn, v);
+
+    mx::array concat = mx::reshape(mx::transpose(h_out, {0, 2, 1, 3}), {num_sentences, num_q_tokens, h * d_v});
+    return mx::matmul(concat, WO);
 }
 
 void MultiHeadAttention::set_encoder_output(const mx::array& enc_out) {

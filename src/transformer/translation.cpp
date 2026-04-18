@@ -12,7 +12,7 @@ struct TrainingConfig {
     // Model architecture
     int num_encoder_layers = 4;
     int num_decoder_layers = 4;
-    int seq = 256;
+    int seq = 60;
     int d_model = 512;
     int h = 8;
     int vocab_size = 10000;
@@ -25,9 +25,9 @@ struct TrainingConfig {
     float beta2 = 0.999;
 
     // Dataset parameters
-    int N = 180000;  // Number of sentence pairs to use (max 183,251 available)
-    float train_size = 0.8;
-    float val_size = 0.1;
+    int N = 200000;  // Number of sentence pairs to use (max 183,251 available)
+    float train_size = 0.95;
+    float val_size = 0.05;
 
     // Paths - parallel text files
     string en_data_path = "../translation/news-commentary-v9.fr-en.en";
@@ -160,8 +160,8 @@ pair<vector<vector<int>>, vector<vector<int>>> load_tokenized_sentences_from_par
     const string& en_path, const string& fr_path,
     BPETokenizer& tokenizer, int max_num_sentences, int max_len_sentences) {
 
-    // First, load raw sentences
-    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(en_path, fr_path, max_num_sentences, max_len_sentences);
+    // First, load raw sentences (use a generous character limit; token-level filtering happens below)
+    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(en_path, fr_path, max_num_sentences, 1000);
 
     // Then tokenize them
     vector<vector<int>> en_tokens;
@@ -239,7 +239,7 @@ void test_tokenizer(BPETokenizer* tokenizer) {
 void train_and_save_tokenizer(TrainingConfig& config) {
     BPETokenizer* tokenizer = new BPETokenizer;
     vector<string> corpus;
-    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(config.en_data_path, config.fr_data_path, config.N, config.seq);
+    auto [en_sentences, fr_sentences] = load_sentences_from_parallel_files(config.en_data_path, config.fr_data_path, config.N, numeric_limits<int>::max());
     corpus.reserve(en_sentences.size() + fr_sentences.size());
     for (auto& en_sentence : en_sentences) corpus.push_back(en_sentence);
     for (auto& fr_sentence: fr_sentences) corpus.push_back(fr_sentence);
@@ -260,7 +260,7 @@ void init_transformer_model(TrainingConfig& cfg) {
     transformer_network->save_model(cfg.model_path);
 }
 
-void train_transformer_model(TrainingConfig& cfg, bool save_transformer_model=true, bool infer_test_data=true) {
+void train_transformer_model(TrainingConfig& cfg, bool save_transformer_model=true) {
     // Load tokenizer
     BPETokenizer* tokenizer = new BPETokenizer;
     tokenizer->load(cfg.tokenizer_path);
@@ -302,7 +302,46 @@ void train_transformer_model(TrainingConfig& cfg, bool save_transformer_model=tr
     cout << "Time: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 
     if (save_transformer_model) transformer_network->save_model(cfg.model_path);
-    if (infer_test_data) transformer_network->infer(data.en_test, tokenizer, cfg.output_path);
+}
+
+void translate_to_csv(TrainingConfig& cfg) {
+    ofstream file(cfg.output_path);
+    if (!file.is_open()) throw runtime_error("Could not open the file");
+
+    // Load tokenizer
+    BPETokenizer* tokenizer = new BPETokenizer;
+    tokenizer->load(cfg.tokenizer_path);
+
+    // Load model
+    ActivationFunction* activation = new Relu();
+    Optimizer* optimizer = new AdamOptimizer(nullptr, cfg.learning_rate, cfg.beta1, cfg.beta2);
+    TransformerNetwork* transformer_network = new TransformerNetwork(cfg.model_path, activation, optimizer);
+    transformer_network->get_optimizer()->update_optimizer();
+
+    vector<vector<int>> en_tokens, fr_tokens;
+    // Try to load from cache first
+    ifstream cache_check(cfg.tokenized_cache_path);
+    if (cache_check.good()) {
+        cout << "Loading tokenized data from cache" << endl;
+        tie(en_tokens, fr_tokens) = load_tokenized_data(cfg.tokenized_cache_path);
+    } else {
+        cout << "Cache not found. Tokenizing sentences" << endl;
+        tie(en_tokens, fr_tokens) = load_tokenized_sentences_from_parallel_files(cfg.en_data_path, cfg.fr_data_path, *tokenizer, cfg.N, cfg.seq);
+        save_tokenized_data(cfg.tokenized_cache_path, en_tokens, fr_tokens);
+    }
+
+    DatasetSplit data = split_dataset(en_tokens, fr_tokens, cfg.train_size, cfg.val_size);
+
+    vector<vector<int>> translated_fr_test = transformer_network->infer(data.en_test);
+
+    int num_sentences = data.en_test.size();
+    for (int i = 0; i < num_sentences; i++) {
+        string input_sentence = tokenizer->decode(data.en_test[i]);
+        string predicted_sentence = tokenizer->decode(translated_fr_test[i]);
+        file << "\"" << input_sentence << "\"," << "\"" << predicted_sentence << "\"\n";
+    }
+    file.close();
+
 }
 
 void infer_live_translation(TrainingConfig& cfg) {

@@ -53,7 +53,7 @@ void FeedForward::backward(const mx::array& d_output) {
 }
 
 mx::array FeedForward::infer(const mx::array& input) const {
-    return input;
+    return mx::matmul(activation->apply(mx::matmul(input, W1) + b1), W2) + b2;
 }
 
 const vector<TrainableParameter>& FeedForward::get_parameters() const {

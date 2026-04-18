@@ -45,9 +45,9 @@ void Encoder::backward(const mx::array& d_output) {
     d_input = ln1->get_d_input() + d_after_attn;
 }
 
-mx::array Encoder::infer(const mx::array& input) {
+mx::array Encoder::infer(const mx::array& input, const mx::array& padding_mask) {
     mx::array x_norm1 = ln1->infer(input);
-    mx::array after_attn = mha_self->infer(x_norm1) + input;
+    mx::array after_attn = mha_self->infer(x_norm1, padding_mask) + input;
     mx::array x_norm2 = ln2->infer(after_attn);
     return ff->infer(x_norm2) + after_attn;
 }

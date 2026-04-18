@@ -46,7 +46,8 @@ class TransformerNetwork : public Network {
         const mlx::core::array& forward(const mlx::core::array& encoder_token_ids, const mlx::core::array& decoder_token_ids,
                                         const mlx::core::array& encoder_padding_mask, const mlx::core::array& decoder_padding_mask);
         const mlx::core::array& backward(const mlx::core::array& y_true, const mlx::core::array& y_pred);
-        void infer(const std::vector<std::vector<int>>& encoder_token_ids, BPETokenizer* tokenizer, const std::string& csv_path) const;
+        mlx::core::array infer(const mlx::core::array& encoder_token_ids, const mlx::core::array& encoder_padding_mask) const;
+        std::vector<std::vector<int>> infer(const std::vector<std::vector<int>>& encoder_tokens) const;
         void infer_live(BPETokenizer* tokenizer) const;
         float compute_validation_loss(std::vector<std::vector<int>>& encoder_tokens_val, std::vector<std::vector<int>>& decoder_tokens_val, int batch_size);
         void train(

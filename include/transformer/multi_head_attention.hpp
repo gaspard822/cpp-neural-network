@@ -32,7 +32,13 @@ class MultiHeadAttention : public Layer {
 
         void backward(const mlx::core::array& d_output) override;
 
-        mlx::core::array infer(const mlx::core::array& layer_input) const override;
+        mlx::core::array infer(const mlx::core::array& layer) const override;
+
+        // Self-attention infer (encoder self or decoder masked self)
+        mlx::core::array infer(const mlx::core::array& input, const mlx::core::array& padding_mask) const;
+
+        // Cross-attention infer (decoder cross)
+        mlx::core::array infer(const mlx::core::array& input, const mlx::core::array& encoder_out, const mlx::core::array& encoder_padding_mask) const;
 
         void set_encoder_output(const mlx::core::array& enc_out);
         void set_padding_mask(const mlx::core::array& pad_mask);

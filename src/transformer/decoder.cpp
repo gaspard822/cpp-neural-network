@@ -59,12 +59,11 @@ void Decoder::backward(const mx::array& d_output) {
     d_input = ln1->get_d_input() + d_after_masked;
 }
 
-mx::array Decoder::infer(const mx::array& encoder_input, const mx::array& decoder_input) {
-    mha_cross->set_encoder_output(encoder_input);
+mx::array Decoder::infer(const mx::array& encoder_input, const mx::array& decoder_input, const mx::array& encoder_padding_mask, const mx::array& decoder_padding_mask) {
     mx::array x_norm1 = ln1->infer(decoder_input);
-    mx::array after_masked = mha_masked->infer(x_norm1) + decoder_input;
+    mx::array after_masked = mha_masked->infer(x_norm1, decoder_padding_mask) + decoder_input;
     mx::array x_norm2 = ln2->infer(after_masked);
-    mx::array after_cross = mha_cross->infer(x_norm2) + after_masked;
+    mx::array after_cross = mha_cross->infer(x_norm2, encoder_input, encoder_padding_mask) + after_masked;
     mx::array x_norm3 = ln3->infer(after_cross);
     return ff->infer(x_norm3) + after_cross;
 }

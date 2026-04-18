@@ -40,8 +40,11 @@ void LayerNorm::backward(const mlx::core::array& d_output) {
 }
 
 mx::array LayerNorm::infer(const mx::array& input) const {
-    // input: (num_tokens, d_model)
-    return input;
+    mx::array d = input - mx::mean(input, 2, true);
+    mx::array variance = mx::mean(mx::square(d), 2, false);
+    mx::array isv = mx::ones({variance.shape(0), variance.shape(1)}, mx::float32) / mx::sqrt(variance + epsilon);
+    mx::array norm = d * mx::reshape(isv, {variance.shape(0), variance.shape(1), 1});
+    return norm * gamma + beta;
 }
 
 const vector<TrainableParameter>& LayerNorm::get_parameters() const {
