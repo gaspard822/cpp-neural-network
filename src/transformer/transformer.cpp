@@ -352,7 +352,7 @@ void TransformerNetwork::train(
         chrono::time_point<chrono::high_resolution_clock> start_timer, end_timer;
         start_timer = chrono::high_resolution_clock::now();
         for (int start = 0; start < N; start += batch_size) {
-            if (((int)(start / batch_size) % 50) == 0) cout << "batch " << (int)(start/batch_size) << endl;
+            if (((int)(start / batch_size) % 50) == 0) cout << "batch " << (int)(start/batch_size) << "/" << N/batch_size << endl;
             int end = min(start + batch_size, N);
             int current_batch_size = end - start;
             const mx::array current_batch_indices = mx::slice(mx_indices, {start}, {end});

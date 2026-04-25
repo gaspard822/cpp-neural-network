@@ -15,23 +15,23 @@ struct TrainingConfig {
     int seq = 60;
     int d_model = 512;
     int h = 8;
-    int vocab_size = 10000;
+    int vocab_size = 16000;
 
     // Training hyperparameters
     int num_epochs = 1;
     int batch_size = 256;
-    float learning_rate = 0.0003;
+    float learning_rate = 0.0001;
     float beta1 = 0.9;
     float beta2 = 0.999;
 
     // Dataset parameters
-    int N = 200000;  // Number of sentence pairs to use (max 183,251 available)
+    int N = 400000;  // Number of sentence pairs to use
     float train_size = 0.95;
     float val_size = 0.05;
 
     // Paths - parallel text files
-    string en_data_path = "../translation/news-commentary-v9.fr-en.en";
-    string fr_data_path = "../translation/news-commentary-v9.fr-en.fr";
+    string en_data_path = "../translation/opus.en-fr-train.en.txt";
+    string fr_data_path = "../translation/opus.en-fr-train.fr.txt";
     string tokenizer_path = "../transformer_models/bpe_tokenizer.txt";
     string model_path = "../transformer_models/saved_model.txt";
     string output_path = "../translation/output.csv";
